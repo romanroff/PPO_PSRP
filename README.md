@@ -1,3 +1,13 @@
+## Requirements
+
+* gym
+* torch
+* gymnasium
+* sb3_contrib
+* tensorboard
+* torch_geometric
+* stable-baselines3[extra]
+
 ## Model Training
 
 ```bash
