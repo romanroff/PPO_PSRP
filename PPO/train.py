@@ -6,9 +6,9 @@ from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.monitor import Monitor
 
 # Импортирование собственных модулей
-from problem_solvers.gnn.PPO.env.irp_env_custom import IRPEnv_Custom
-from problem_solvers.gnn.PPO.logger import InfoLoggerCallback, RewardsCallback, TensorboardGradientCallback
-from problem_solvers.gnn.PPO.settings import KEYS_TO_LOG, REWARDS_TO_LOG, PARAMETERS_DICT
+from PPO.environment.irp_env_custom import IRPEnv_Custom
+from PPO.logger import InfoLoggerCallback, RewardsCallback, TensorboardGradientCallback
+from PPO.settings import KEYS_TO_LOG, REWARDS_TO_LOG, PARAMETERS_DICT
 
 # Функция для обработки аргументов командной строки
 def parse_args():

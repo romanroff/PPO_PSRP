@@ -8,8 +8,8 @@ import sys
 sys.path.append('./')
 sys.path.append('../')
 sys.path.append('/PSRP/')
-from problem_solvers.gnn.PPO.gen_env import model_for_nn
-from problem_solvers.gnn.PPO.settings import *
+from PPO.gen_env import model_for_nn
+from PPO.settings import *
 from data_generators.DataBuilder_MPPSRP_Simple import DataBuilder_MPPSRP_Simple
 from problem_solvers.gnn.PPO.env.irp_env_custom import IRPEnv_Custom
 from problem_solvers.gnn.dataset_utils import get_graph_dict
@@ -269,46 +269,3 @@ while not done:
 
 # for idx, img in enumerate(image_arrays):
 #     img.save(f'images/output{idx}.png')
-
-
-from datetime import datetime
-from pprint import pprint
-import time
-
-# from problem_solvers.gnn.PPO.gen_env import graph_data
-# from problem_solvers.gnn.PPO.settings import parameters_dict
-from problem_solvers.mppsrp.cpsat.TaskBuilder_MPPSRP_FullMILP_CPSAT import TaskBuilder_MPPSRP_FullMILP_CPSAT
-from problem_solvers.mppsrp.cpsat.TaskSolver_MPPSRP_CPSAT import TaskSolver_MPPSRP_CPSAT
-# from problem_solvers.mppsrp.data_generators.DataBuilder_MPPSRP_FullMILP_CPSAT import DataBuilder_MPPSRP_FullMILP_CPSAT
-
-from paths_config import interim_dir
-
-task_builder = TaskBuilder_MPPSRP_FullMILP_CPSAT( max_trips_per_day=parameters_dict['max_trips'], verbose=True )
-task = task_builder.build_task( graph_data )
-
-print("Solving start time: {}".format( datetime.now() ))
-task_solver = TaskSolver_MPPSRP_CPSAT( cache_dir=interim_dir,
-                                       cache_all_feasible_solutions=False,
-                                       solution_prefix='dataset',
-                                       time_limit_milliseconds=60_000)
-start_time = time.time()
-solution = task_solver.solve( task )
-delta_time = time.time() - start_time
-print('kpi')
-cpsat_kpi = solution.get_kpis()
-pprint( cpsat_kpi )
-
-print('routes_schedule')
-routes_schedule = solution.get_routes_schedule()
-pprint( routes_schedule )
-
-print("done")
-
-import pandas as pd
-
-df_model_kpi = pd.DataFrame(list(model_kpi.items()), columns=['Metric', 'Model KPI'])
-df_cpsat_kpi = pd.DataFrame(list(cpsat_kpi.items()), columns=['Metric', 'CPSAT KPI'])
-
-df_kpi = pd.merge(df_model_kpi, df_cpsat_kpi, on='Metric', how='outer')
-
-df_kpi.to_csv('out.csv')
