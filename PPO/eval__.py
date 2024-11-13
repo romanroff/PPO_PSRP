@@ -1,22 +1,29 @@
+import argparse
+import pickle
+
 from matplotlib import pyplot as plt
 import matplotlib.gridspec as gridspec
 import pandas as pd
 from PIL import Image
 from sb3_contrib import RecurrentPPO
 from stable_baselines3.common.utils import obs_as_tensor
-import sys
-sys.path.append('./')
-sys.path.append('../')
-sys.path.append('/PSRP/')
-from PPO.gen_env import model_for_nn
-from PPO.settings import *
-from data_generators.DataBuilder_MPPSRP_Simple import DataBuilder_MPPSRP_Simple
-from problem_solvers.gnn.PPO.env.irp_env_custom import IRPEnv_Custom
-from problem_solvers.gnn.dataset_utils import get_graph_dict
-from problem_solvers.gnn.graph_generation_functions import create_wheel_noised
+
+from PPO.settings import PARAMETERS_DICT
+from PPO.environment.irp_env_custom import IRPEnv_Custom
 
 import numpy as np
 import torch as th
+
+# Функция для обработки аргументов командной строки
+def parse_args():
+    parser = argparse.ArgumentParser(description="Параметры для запуска модели.")
+    parser.add_argument("--n", type=int, required=True, help="Количество узлов.")
+    parser.add_argument("--n_steps", type=int, required=True, help="Количество шагов.")
+    parser.add_argument("--veh", type=int, required=True, help="Количество транспортных средств.")
+    return parser.parse_args()
+
+# Получение аргументов
+args = parse_args()
 
 def predict_proba(model, state, lstm_states, episode_start):
     states = th.tensor(lstm_states[0], dtype=th.float32, device=model.policy.device), th.tensor(
@@ -66,49 +73,19 @@ def add_bar_chart_to_image(img, probs):
 
     return combined_img
 
-n_steps = 500
-n = 6
-veh = 6
-text = 'final'
-parameters_dict['load_policy'] = 'full_fill'
-parameters_dict['max_trips'] = 1
-parameters_dict['num_nodes'] = n
-parameters_dict['k_vehicles'] = veh
+PARAMETERS_DICT['num_nodes'] = args.n
+PARAMETERS_DICT['k_vehicles'] = args.veh
 
+# Загрузка model_for_nn из файла .pkl
+pkl_path = f"data_pkl/nodes-{args.n}_steps-{args.n_steps}_veh-{args.veh}.pkl"
+try:
+    with open(pkl_path, "rb") as f:
+        model_for_nn = pickle.load(f)
+except FileNotFoundError:
+    raise FileNotFoundError(f"Файл {pkl_path} не найден. Проверьте путь и наличие файла.")
+env = IRPEnv_Custom(model_for_nn, PARAMETERS_DICT)
 
-
-
-
-generation_function = create_wheel_noised
-synth_data = generation_function(parameters_dict['num_nodes'])
-
-data_builder = DataBuilder_MPPSRP_Simple(synth_data["weight_matrix"],
-                                         distance_multiplier=1, travel_time_multiplier=60 * 60,
-                                         planning_horizon=parameters_dict['planning_horizon'], # горизонт
-                                         safety_level=0.05, max_level=0.95,
-                                         initial_inventory_level=0.5, tank_capacity=100,
-                                         depot_service_time=15 * 60, station_service_time=15 * 60,
-                                         demand=10, products_count=parameters_dict['products_count'],
-                                         k_vehicles=parameters_dict["k_vehicles"],
-                                         compartments=[parameters_dict["products_count"] * [
-                                             parameters_dict["compartment_capacity"]]],
-                                         mean_vehicle_speed=60, vehicle_time_windows=[[9 * 60 * 60, 18 * 60 * 60]],
-                                         noise_initial_inventory=0.0, noise_tank_capacity=0.0,
-                                         noise_compartments=0.0, noise_demand=0.0,
-                                         noise_vehicle_time_windows=0.0,
-                                         noise_restrictions=0.0,
-                                         random_seed=45)
-
-graph_data = data_builder.build_data_model()
-
-model_for_nn = get_graph_dict(synth_data=synth_data,
-                              parameters_dict=parameters_dict,
-                              graph_data=graph_data)
-
-env_irp = IRPEnv_Custom(model_for_nn, parameters_dict)
-
-model = RecurrentPPO.load(rf"logs/Rec-PPO_NN_old-env_nsteps-{n_steps}_nodes-{n}_veh-{veh}_{text}/best_model.zip", env=env_irp)
-
+model = RecurrentPPO.load(rf"models/nsteps-{args.n_steps}_nodes-{args.n}_veh-{args.veh}/best_model.zip", env=env)
 
 eval_env = model.get_env()
 obs = eval_env.reset()
@@ -148,13 +125,13 @@ while not done:
     visited_actions.add(current_action)  # Добавляем значение в множество
 
     # Проверка, если все значения от 0 до n посещены
-    if visited_actions == set(range(n)) and not set_completed:
+    if visited_actions == set(range(args.n)) and not set_completed:
         set_completed = True  # Устанавливаем флаг, что все значения посещены
 
     # После заполнения множества ожидаем один дополнительный шаг и фиксируем total_distance
     elif set_completed and not total_distance_fixed:
         total_distance = info[0]['total_travel_distance']
-        print(f'Все значения от 0 до {n} посещены + 1 шаг. total_distance = {total_distance}')
+        print(f'Все значения от 0 до {args.n} посещены + 1 шаг. total_distance = {total_distance}')
         total_distance_fixed = True  # Устанавливаем флаг, что total_distance зафиксирован
 
 
@@ -168,10 +145,7 @@ while not done:
 
     day_end = (eval_env.envs[0].day_end)
     new_day.append(day_end)
-
-    # сохранить в df
     capacities_list.append(eval_env.envs[0].init_capacities[:, 0].tolist())
-    # print(eval_env.envs[0].cur_day.item())
 
     episode_starts = done
     # img = eval_env.envs[0].render()  # Ваше основное изображение
@@ -184,16 +158,7 @@ while not done:
 
     # prob = predict_proba(model, obs)
 
-    # print(np.round(prob, 2))
-    # print(f"total_travel_distance: {info[0]['total_travel_distance']}")
-    # print(f"dry_runs: {info[0]['dry_runs']}")
-    # print(f"average_vehicle_utilization: {info[0]['average_vehicle_utilization']}")
-    # print(f"average_stops_per_trip: {info[0]['average_stops_per_trip']}")
-
     steps += 1
-    # print(rewards)
-    # print(done)
-    # if steps == 300:
     if done:
         print(f"{info[0]['total_travel_distance'] = }")
         print(f"{info[0]['total_travel_time'] = }")
@@ -249,23 +214,11 @@ while not done:
 
         # Добавление последнего графика внизу
         last_ax = fig.add_subplot(gs[-1])
-        pd.DataFrame(capacities_list, columns=[f'{i}' for i in range(n)]).plot(ax=last_ax)
+        pd.DataFrame(capacities_list, columns=[f'{i}' for i in range(args.n)]).plot(ax=last_ax)
         last_ax.set_title('Capacities Plot')
         last_ax.grid()
         add_vertical_lines(last_ax, df['new_day'])
 
         # Общий заголовок и отображение графиков
         plt.tight_layout()
-        plt.savefig(f"images/rewards_{n}_{n_steps}_{veh}_{text}.png")
-
-
-    # print()
-# print(actions)
-# print()
-
-# print('Saving gif...')
-# image_arrays[0].save('output.gif', save_all=True, append_images=image_arrays[1:], duration=1000, loop=0)
-# print('Gif saved!')
-
-# for idx, img in enumerate(image_arrays):
-#     img.save(f'images/output{idx}.png')
+        plt.savefig(f"results/rewards_{args.n}_{args.n_steps}_{args.veh}.png")

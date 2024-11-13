@@ -1,6 +1,6 @@
 import torch
 
-from problem_solvers.gnn.PPO.GNN import GATFeatureExtractor
+from PPO.GNN.GNN import GATFeatureExtractor
 
 KEYS_TO_LOG = [
     'total_travel_distance',
@@ -29,7 +29,7 @@ PARAMETERS_DICT = {
     'planning_horizon': 7,
     'noise_demand': 0.2,
     'seed': 6,
-    'max_trips': 2,
+    'max_trips': 1,
     'eval_epochs': 3,
     'load_policy':  'full_fill',
     'days_to_fill': 3,
