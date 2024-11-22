@@ -1,3 +1,5 @@
+The Petrol Station Replenishment Problem (PSRP) involves distributing fuel from depots to stations using multi-compartment vehicles over a multi-day horizon. Traditional methods are computationally intensive and focus on single-day solutions, limiting efficiency. This paper proposes a reinforcement learning-based approach to optimize routing and inventory management, reducing costs and improving operational efficiency. By leveraging learned patterns, the model adapts to dynamic constraints and eliminates the need for frequent recalculations, offering a scalable solution to PSRP.
+
 # Requirements
 
 * gym
@@ -139,6 +141,8 @@ python eval.py --n 3 --veh 2 --n_steps 500
 
 
 ## Possible parameters:
+
+Ниже представлены примеры запуска моделей, которые находятся в `data_pkl`
 ```
  --n [3, 4, 5, 6, 7, 8, 9, 10] - Number of nodes
  --veh [2, 4, 6] - Number of vehicles
@@ -146,3 +150,4 @@ python eval.py --n 3 --veh 2 --n_steps 500
  --timesteps - Number of training steps
  --pre_train [True, False] - Loading a pre-trained model
 ```
+
