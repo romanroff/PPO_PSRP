@@ -50,29 +50,29 @@ python eval.py --n 3 --veh 2 --n_steps 500
 
 # Data for Model
 
-Данные подаются в формате `.pkl`, который содержит `tuple` из 11 атрибутов. Каждый из них представлен в формате `torch.Tensor`. Эти данные используются для обучения модели и описывают параметры задачи. Ниже представлен формат данных:
+The data is provided in a `.pkl` format, containing a `tuple` of 11 attributes. Each attribute is represented as a `torch.Tensor`. These data are used to train the model and define the problem parameters. Below is the data format description:
 
-1. **positions (позиции):**  
-   Двумерный тензор размера `(n, 2)` с координатами точек.  
-   Пример:
+1. **positions:**  
+   A 2D tensor of size `(n, 2)` representing the coordinates of the points.  
+   Example:
    ```python
    tensor([[274., 149.],
            [ 82., 223.],
            [ 94.,  49.]], dtype=torch.float64)
    ```
 
-2. **weight_matrixes (матрицы весов):**  
-   Квадратная матрица размера `(n, n)` с весами (например, расстояния между точками).  
-   Пример:
+2. **weight_matrixes:**  
+   A square matrix of size `(n, n)` containing weights (e.g., distances between points).  
+   Example:
    ```python
    tensor([[    0., 12300., 12300.],
            [12300.,     0., 10440.],
            [12300., 10440.,     0.]], dtype=torch.float64)
    ```
 
-3. **daily_demands (ежедневные запросы):**  
-   Трехмерный тензор размера `(d, n, 2)`, где `d` — количество дней, `n` — количество точек, `2` — параметры запросов.  
-   Пример:
+3. **daily_demands:**  
+   A 3D tensor of size `(d, n, 2)`, where `d` is the number of days, `n` is the number of points, and `2` represents demand parameters.  
+   Example:
    ```python
    tensor([[[ 0.,  0.], 
             [10., 10.],
@@ -83,65 +83,65 @@ python eval.py --n 3 --veh 2 --n_steps 500
             [10., 10.]]], dtype=torch.float64)
    ```
 
-4. **depots (депо):**  
-   Одномерный тензор с указанием номера узла депо.  
-   Пример:
+4. **depots:**  
+   A 1D tensor specifying the node index of the depot.  
+   Example:
    ```python
    tensor([0.], dtype=torch.float64)
    ```
 
-5. **working_time (рабочее время):**  
-   Одномерный тензор с указанием рабочего времен в секундах.  
-   Пример:
+5. **working_time:**  
+   A 1D tensor representing the working time in seconds.  
+   Example:
    ```python
    tensor([32400., 32400.], dtype=torch.float64)
    ```
 
-6. **restriction_matrix (матрица ограничений):**  
-   Целочисленный двумерный тензор, описывающий ограничения.  
-   Пример:
+6. **restriction_matrix:**  
+   A 2D integer tensor describing restrictions or constraints.  
+   Example:
    ```python
    tensor([[0, 0, 0],
            [0, 0, 0]], dtype=torch.int32)
    ```
 
-7. **service_times (время обслуживания):**  
-   Одномерный тензор с временем обслуживания для каждой точки.  
-   Пример:
+7. **service_times:**  
+   A 1D tensor with the service time required at each point.  
+   Example:
    ```python
    tensor([900., 900., 900.], dtype=torch.float64)
    ```
 
-8. **min_capacities (минимальная вместимость):**  
-   Двумерный тензор размера `(n, 2)` с минимальными значениями, ниже которых нельзя опускаться.  
-   Пример:
+8. **min_capacities:**  
+   A 2D tensor of size `(n, 2)` representing the minimum capacity limits that cannot be exceeded downward.  
+   Example:
    ```python
    tensor([[0., 0.],
            [5., 5.],
            [5., 5.]], dtype=torch.float64)
    ```
 
-9. **max_capacities (максимальная вместимость):**  
-   Двумерный тензор размера `(n, 2)` с максимальными значениями вместимости.  
-   Пример:
+9. **max_capacities:**  
+   A 2D tensor of size `(n, 2)` representing the maximum capacity limits.  
+   Example:
    ```python
    tensor([[ 0.,  0.],
            [95., 95.],
            [95., 95.]], dtype=torch.float64)
    ```
 
-10. **init_capacities (начальная вместимость):**  
-    Двумерный тензор размера `(n, 2)` с начальными значениями вместимости.  
-    Пример:
+10. **init_capacities:**  
+    A 2D tensor of size `(n, 2)` representing the initial capacities.  
+    Example:
     ```python
     tensor([[ 0.,  0.],
             [50., 50.],
             [50., 50.]], dtype=torch.float64)
     ```
 
-11. **vehicle_compartments (отсеки транспортных средств):**  
-    Трехмерный тензор размера `(v, n, 2)`, где `v` — количество транспортных средств.  
-    Пример:
+11. **vehicle_compartments:**  
+    A 3D tensor of size `(v, n, 2)`, where `v` is the number of vehicles.  
+    Example:
     ```python
     tensor([[[50., 50.],
              [50., 50.],
