@@ -173,7 +173,6 @@ cython_debug/
 /tensorboard_old_results
 /result
 *.csv
-/images
 /results
 /Новая папка
 /problem_solvers/mppsrp
