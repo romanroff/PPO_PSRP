@@ -27,10 +27,10 @@ def log_kpi_metrics(df, capacities_list, args):
     plt.tight_layout()
 
     # Создание папки results, если она не существует
-    if not os.path.exists("results"):
-        os.makedirs("results")
+    if not os.path.exists(f"results/{args.n}_{args.n_steps}_{args.veh}"):
+        os.makedirs(f"results/{args.n}_{args.n_steps}_{args.veh}")
 
     # Сохранение графика
-    plt.savefig(f"results/rewards_{args.n}_{args.n_steps}_{args.veh}.png")
-    df.to_csv('results/results.csv', index=False)
+    plt.savefig(f"results/{args.n}_{args.n_steps}_{args.veh}/rewards_{args.n}_{args.n_steps}_{args.veh}.png")
+    df.to_csv(f'results/{args.n}_{args.n_steps}_{args.veh}/results.csv', index=False)
 

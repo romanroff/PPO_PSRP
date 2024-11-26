@@ -59,8 +59,8 @@ def evaluate_model(model, args):
             df = pd.DataFrame(kpi_data)
             log_kpi_metrics(df, capacities_list, args)
     
-    if not os.path.exists("results/steps"):
-        os.makedirs("results/steps")
+    if not os.path.exists(f"results/{args.n}_{args.n_steps}_{args.veh}/steps"):
+        os.makedirs(f"results/{args.n}_{args.n_steps}_{args.veh}/steps")
 
     for idx, img in enumerate(image_arrays):
-        img.save(f'results/steps/env_frame_{idx}.png')
+        img.save(f'results/{args.n}_{args.n_steps}_{args.veh}/steps/env_frame_{idx}.png')
