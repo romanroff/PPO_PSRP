@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from gym import spaces
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch_geometric.data import Data, Batch
-from torch_geometric.nn import GAT, SAGPooling
+from torch_geometric.nn import GAT, SAGPooling, global_add_pool
 
 
 class GATFeatureExtractor(BaseFeaturesExtractor):
@@ -19,10 +19,10 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
         self.gat = GAT(
             in_channels=node_input_dim,
             hidden_channels=embedding_size,
-            num_layers=5,
+            num_layers=3,
             out_channels=embedding_size,
             heads=8,
-            dropout=0.0,
+            dropout=0.1,
             edge_dim=1
         )
 
@@ -42,7 +42,7 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
             nn.Linear(embedding_size, embedding_size)
         )
 
-        self.pool = SAGPooling(in_channels=embedding_size, ratio=1)
+        self.pool = global_add_pool
 
     def forward(self, observations):
         node_features, edge_index, edge_attr, batch = self.convert_to_pyg_format(observations)
@@ -52,14 +52,13 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
                      edge_index=edge_index,
                      edge_attr=edge_attr,
                      batch=batch)
+
         x = self.pool(x=x,
-                      edge_index=edge_index,
-                      edge_attr=edge_attr,
                       batch=batch)
 
         global_hidden = F.relu(self.global_linear(global_features))
 
-        combined = torch.cat([x[0], global_hidden], dim=-1)
+        combined = torch.cat([x, global_hidden], dim=-1)
 
         output = self.final_linear(combined)
         return output

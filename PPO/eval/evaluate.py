@@ -25,6 +25,7 @@ def evaluate_model(model, args):
                                     'revisit_penalties', 'dry_runs_penalties']}
 
     while not done:
+    # while steps < 100:
         action, lstm_states = model.predict(obs, state=lstm_states, episode_start=episode_starts, deterministic=True)
         probs = predict_proba(model, obs, lstm_states=lstm_states, episode_start=episode_starts)
         obs, rewards, done, info = eval_env.step(action)
@@ -52,6 +53,7 @@ def evaluate_model(model, args):
         steps += 1
 
         if done:
+        # if steps == 100:
 
             total_rewards = np.sum([np.array(kpi_data[key]) for key in kpi_data.keys()], axis=0)
 
