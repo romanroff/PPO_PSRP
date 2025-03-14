@@ -3,7 +3,8 @@ import torch
 class ActionManagement:
     def _update_time_and_location(self, actions):
         action_time = self.get_distance(self.current_location, actions)
-        action_time = action_time.T.squeeze()
+        # Используем .squeeze() без .T, если тензор уже одномерный или скалярный
+        action_time = action_time.squeeze()
         self.current_location = actions
         selected_service_times = self.service_times[actions].squeeze()
         self.cur_remaining_time -= action_time + selected_service_times
@@ -13,17 +14,14 @@ class ActionManagement:
 
         self.update_edges()
 
-    def _update_load(self, actions):
-        if self.load_policy == 'fill_forward':
-            self._fill_forward_load_policy(actions)
-        elif self.load_policy == 'full_fill':
-            self._full_fill_load_policy(actions)
-
+    def _update_load(self, actions, delivery_percent):
+        full_fill_up = self.max_capacities - self.init_capacities
+        selected_temp_load = self.temp_load[actions, :].squeeze(0)
+        max_possible_delivery = torch.min(full_fill_up[actions, :].squeeze(0), selected_temp_load)
+        selected_delivery = delivery_percent * self.max_capacities[actions, :].squeeze(0)
+        self.delivery = torch.min(selected_delivery, max_possible_delivery)
         self.init_capacities[actions] += self.delivery
-        percent = self.delivery / self.load[actions, :].squeeze(0)
-        percent = percent
-        percent_reduction = self.load * percent
-        self.temp_load -= percent_reduction.type(self.temp_load.dtype).squeeze()
+        self.temp_load[actions, :] -= self.delivery.type(self.temp_load.dtype)
         self.temp_load[self.temp_load <= 0.01] = 0
 
     def _handle_depot_visits(self, actions):
@@ -55,7 +53,9 @@ class ActionManagement:
         return (self.cur_day >= self.planning_horizon).item()
 
     def average_routes(self, seq):
-        seq = torch.cat(seq).tolist()
+        # Преобразуем каждый элемент в тензор с размерностью 1 и затем конкатенируем
+        seq = [torch.tensor([x], device=self.device) if isinstance(x, (int, float)) else x for x in seq]
+        seq = torch.cat(seq).tolist()  # Теперь это одномерный список
         seq.insert(0, 0)
         seq.insert(-1, 0)
         count = 0

@@ -80,7 +80,8 @@ class StateUtils:
         cur_to_any_time = self.weight_matrixes[self.current_location].squeeze()
         self.possible_action_time = cur_to_any_time + self.service_times + self.dist_to_depot
 
-        self.temp_load = self.load.clone().squeeze()
+        # Изменяем размерность temp_load
+        self.temp_load = self.load.clone()  # Размерность: [products_count]
 
     def update_edges(self):
         temp_hour = self.working_hours[self.temp_vehicle] - self.cur_remaining_time / (60 * 60)

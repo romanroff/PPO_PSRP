@@ -21,13 +21,17 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
         self.batch = batch
         self.reset(seed)
 
-        self.action_space = spaces.Discrete(self.num_nodes)
+        # Новое пространство действий: [индекс станции, количество топлива]
+        self.action_space = spaces.MultiDiscrete([
+            self.num_nodes,  # Выбор станции
+            101  # Количество топлива от 0 до 100 (например, в процентах от max_capacity)
+        ])
 
         self.observation_space = spaces.Dict({
             'node_features': spaces.Box(low=-np.inf, high=np.inf,
                                         shape=(self.num_nodes, self.products_count * 3), dtype=np.float32),
             'edge_index': spaces.Box(low=0, high=self.num_nodes, shape=(2, self.num_nodes * (self.num_nodes - 1)),
-                                     dtype=np.int64),
+                                    dtype=np.int64),
             'edge_attr': spaces.Box(low=0, high=np.inf, shape=(self.num_nodes * (self.num_nodes - 1), 1),
                                     dtype=np.float32),
             'global_features': spaces.Box(low=-np.inf, high=np.inf, shape=(4,), dtype=np.float32),
@@ -35,21 +39,25 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
 
     def step(self, actions: torch.Tensor) -> Tuple[torch.Tensor, dict, bool]:
         if not isinstance(actions, torch.Tensor):
-            actions = torch.tensor(actions).unsqueeze(0).to(self.device)
+            actions = torch.tensor(actions).to(self.device)
 
-        self.action_history.append(actions.item())
+        # Убеждаемся, что actions имеет правильную форму [station_idx, delivery_percent]
+        station_idx = actions[0].unsqueeze(0)  # Индекс станции как тензор [1]
+        delivery_percent = actions[1].float() / 100.0  # Процент доставки как float
+
+        self.action_history.append(station_idx.item())  # Добавляем только station_idx
         self.step_count += 1
 
-        traversed_edges = torch.cat([self.current_location, actions], dim=0).long()
+        traversed_edges = torch.cat([self.current_location, station_idx], dim=0).long()
 
-        self._update_time_and_location(actions)
-        self._update_load(actions)
-        self._handle_depot_visits(actions)
+        self._update_time_and_location(station_idx)
+        self._update_load(station_idx, delivery_percent)
+        self._handle_depot_visits(station_idx)
         self._handle_day_end()
 
         done = self.is_done()
 
-        self.calc_step_kpis(actions, traversed_edges)
+        self.calc_step_kpis(station_idx, traversed_edges)
         total_reward = self.get_reward(traversed_edges)
         return self.get_state(), total_reward, done, done, self.get_kpis()
 
@@ -83,8 +91,8 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
 
         self.draw_text(draw, font)
 
-        # Если переданы вероятности, отображаем их на изображении
-        if probs is not None:
-            img = self.plot_action_probabilities_on_image(self, img, probs)
+        # # Если переданы вероятности, отображаем их на изображении
+        # if probs is not None:
+        #     img = self.plot_action_probabilities_on_image(img, probs)
 
         return img

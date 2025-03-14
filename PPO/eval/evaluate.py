@@ -17,28 +17,25 @@ def evaluate_model(model, args):
     set_completed = False
     total_distance_fixed = False
 
-    # Логирование KPI
     steps = 0
     capacities_list, new_day, image_arrays = [], [], []
     kpi_data = {key: [] for key in ['capacity_rewards', 'distance_rewards', 'time_end_penalties', 
                                     'empty_load_penalties', 'restricted_station_penalties', 
-                                    'revisit_penalties', 'dry_runs_penalties']}
+                                    'revisit_penalties']}
 
     while not done:
-    # while steps < 100:
         action, lstm_states = model.predict(obs, state=lstm_states, episode_start=episode_starts, deterministic=True)
         probs = predict_proba(model, obs, lstm_states=lstm_states, episode_start=episode_starts)
         obs, rewards, done, info = eval_env.step(action)
-        render = eval_env.envs[0].render()
-        img = add_bar_chart_to_image(render, probs[0])
+        render = eval_env.envs[0].render(probs=probs)  # Передаем [num_nodes]
+        img = add_bar_chart_to_image(render, probs[0])  # Используем одномерный массив
         image_arrays.append(img)
-
-        current_action = action.item()
+        print(action)
+        current_action = action[0,0].item()  # Используем station_idx
         visited_actions.add(current_action)
 
         if visited_actions == set(range(args.n)) and not set_completed:
             set_completed = True
-
         elif set_completed and not total_distance_fixed:
             total_distance_fixed = True
 
@@ -53,10 +50,7 @@ def evaluate_model(model, args):
         steps += 1
 
         if done:
-        # if steps == 100:
-
             total_rewards = np.sum([np.array(kpi_data[key]) for key in kpi_data.keys()], axis=0)
-
             kpi_data.update({'total_reward': total_rewards, 'new_day': new_day})
             df = pd.DataFrame(kpi_data)
             log_kpi_metrics(df, capacities_list, args)

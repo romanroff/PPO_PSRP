@@ -28,7 +28,7 @@ PARAMETERS_DICT['num_nodes'] = args.n
 PARAMETERS_DICT['k_vehicles'] = args.veh
 
 # Загрузка model_for_nn из файла .pkl
-pkl_path = f"data_pkl/nodes-{args.n}_steps-{args.n_steps}_veh-{args.veh}.pkl"
+pkl_path = f"data_pkl/nodes-{args.n}_steps-{500}_veh-{args.veh}.pkl"
 try:
     with open(pkl_path, "rb") as f:
         model_for_nn = pickle.load(f)
@@ -45,6 +45,8 @@ else:
     model = RecurrentPPO(
         "MultiInputLstmPolicy",
         env,
+        learning_rate=3e-4,
+        batch_size=64,
         seed=32,
         verbose=1,
         n_steps=args.n_steps,
@@ -57,7 +59,7 @@ eval_env = IRPEnv_Custom(model_for_nn, PARAMETERS_DICT)
 eval_env = gymnasium.wrappers.TimeLimit(eval_env, max_episode_steps=300)
 eval_env = Monitor(eval_env, allow_early_resets=True)
 
-exp_name = f'nsteps-{args.n_steps}_nodes-{args.n}_veh-{args.veh}'
+exp_name = f'new_reward_nsteps-{args.n_steps}_nodes-{args.n}_veh-{args.veh}'
 eval_callback = EvalCallback(
     eval_env,
     best_model_save_path=f"models/{exp_name}/",

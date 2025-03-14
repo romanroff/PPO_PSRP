@@ -9,6 +9,7 @@ KEYS_TO_LOG = [
     'dry_runs',
     'average_vehicle_utilization',
     'average_stops_per_trip',
+    'average_delivery',
 ]
 
 REWARDS_TO_LOG = [    'capacity_rewards',

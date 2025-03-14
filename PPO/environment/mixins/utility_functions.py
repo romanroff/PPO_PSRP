@@ -56,6 +56,7 @@ class IRPEnvUtilitiesMixin:
         kpis['average_stops_per_trip'] /= average_routes + 1e-6
         kpis['average_stops_per_trip'] = round(kpis['average_stops_per_trip'], 1)
         kpis['average_stock_levels'] = kpis['average_stock_levels'].cpu().tolist()
+        kpis['average_delivery'] = self.total_delivered_quantity.mean().item() / (self.step_count +1)
 
         return kpis
 

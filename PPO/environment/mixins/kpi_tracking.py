@@ -2,9 +2,8 @@ import torch
 
 class KPITracking:
     def calc_step_kpis(self, actions, traversed_edges):
-        self.actions_list.append(actions)
+        self.actions_list.append(actions)  # actions уже скаляр (station_idx)
 
-        # Total travel distance
         distances = self.get_distance(traversed_edges[0], traversed_edges[1])
         self.total_travel_distance += distances
 
@@ -36,12 +35,22 @@ class KPITracking:
         self.days_completed += (self.cur_day == self.planning_horizon - 1).float()
 
     def get_reward(self, traversed_edges):
-        capacity_reward = self.get_capacity_reward()
-        distance_reward = self.get_dist_reward(traversed_edges)
-        total_penalty = self.get_penalty()
-
-        total_reward = capacity_reward + total_penalty + distance_reward
-
+        # Штраф за пересыхания
+        num_dry_stations = torch.any(self.init_capacities < self.min_capacities, dim=1).sum().item()
+        self.dry_runs_penalty = -20 * (num_dry_stations / self.num_nodes)
+        
+        # Штраф за расстояние
+        max_distance = self.weight_matrixes.max().item()
+        distance = self.get_distance(traversed_edges[0], traversed_edges[1]).item()
+        normalized_distance = distance / max_distance if max_distance > 0 else 0
+        self.dist = -1 * normalized_distance
+        
+        # Дополнительные штрафы
+        self.get_penalty()  # Вызываем get_penalty, чтобы обновить self.time_end и др.
+        
+        # Итоговая награда
+        total_reward = self.dry_runs_penalty + self.dist + self.time_end + self.empty_load + self.restricted_station + self.revisit
+        
         return total_reward
 
     def get_capacity_reward(self):
@@ -65,44 +74,27 @@ class KPITracking:
         return self.dist
 
     def get_penalty(self):
+        # Инициализация дополнительных штрафов
         self.time_end = 0
         self.empty_load = 0
         self.restricted_station = 0
         self.revisit = 0
-        self.dry_runs_penalty = 0
         
         current_action = self.action_history[-1]
 
-        # 1. Наказание за окончание времени работы
+        # Штраф за превышение времени
         if self.cur_remaining_time.item() <= 0:
             self.time_end = -2
-
-        # 2. Наказание за пустую загрузку
+        # Штраф за пустую загрузку и отсутствие доставки
         elif torch.all(self.temp_load == 0) and torch.all(self.delivery == 0):
             self.empty_load = -2
-
-        # 3. Наказание за заезд на запрещенную станцию
+        # Штраф за посещение запрещённой станции
         elif self.restriction_matrix[self.temp_vehicle, current_action] == 1:
             self.restricted_station = -2
-
-        # 4. Наказание за повторное посещение той же станции
+        # Штраф за повторное посещение
         elif len(self.action_history) > 1:
             prev_action = self.action_history[-2]
             if prev_action == current_action and current_action != 0:
                 self.revisit = -2
 
-        norm_min = torch.nan_to_num(self.min_capacities / self.max_capacities, posinf=0)
-        norm_temp = torch.nan_to_num(self.init_capacities / self.max_capacities, posinf=0)
-
-        dry_runs_mask = self.init_capacities < self.min_capacities
-        dry_run_penalty = (norm_temp / norm_min) - 1
-        dry_run_penalty = torch.nan_to_num(dry_run_penalty, posinf=0)
-
-        self.dry_runs_penalty = dry_run_penalty[dry_runs_mask] / (self.products_count * (self.num_nodes - 1))
-        self.dry_runs_penalty = self.dry_runs_penalty.sum().item()
-
-        return self.time_end +\
-        self.empty_load +\
-        self.restricted_station +\
-        self.revisit +\
-        self.dry_runs_penalty
+        return self.time_end + self.empty_load + self.restricted_station + self.revisit

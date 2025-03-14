@@ -104,11 +104,16 @@ class RenderUtils:
             draw.ellipse([x - 5, y - 5, x + 5, y + 5], fill=color)
 
             init_cap = self.init_capacities[i].cpu().numpy()
-            delivery = self.delivery.cpu().numpy().squeeze()
-            info_str = " ".join([f"{int(ic)}({int(cr)}), " for ic, cr in zip(init_cap, delivery)])
+            # Получаем delivery только для текущей станции и первого продукта
+            delivery = self.delivery.cpu().numpy().squeeze() if i == self.current_location.item() else 0
+            if isinstance(delivery, np.ndarray):  # Если delivery — массив
+                delivery_value = delivery[0] if len(delivery) > 0 else 0  # Берем первый продукт
+            else:
+                delivery_value = delivery  # Если скаляр, используем напрямую
+            
+            info_str = " ".join([f"{int(ic)}({int(delivery_value if j == 0 else 0)}), " for j, ic in enumerate(init_cap)])
 
             draw.text((x - 40, y - 25), f"№{i}   "+info_str, fill=(0, 0, 0), font=font)
-
     def draw_edges(self, draw, scale, font):
         if len(self.action_history) == 1:
             start = 0
@@ -136,13 +141,14 @@ class RenderUtils:
         draw.text((text_x, text_y), text, font=font, fill=text_color)
 
     def plot_action_probabilities_on_image(self, img, probs):
-        fig, ax = plt.subplots(figsize=(2, 2))  # Устанавливаем размер графика
-        actions = np.arange(len(probs))
-        ax.bar(actions, probs, color='blue')
-        ax.set_xlabel('Actions')
+        fig, ax = plt.subplots(figsize=(2, 2))
+        station_probs = probs.sum(axis=1)  # Суммируем вероятности по количеству топлива для каждой станции
+        actions = np.arange(len(station_probs))
+        ax.bar(actions, station_probs, color='blue')
+        ax.set_xlabel('Stations')
         ax.set_ylabel('Probability')
-        ax.set_title('Action Probabilities')
-        ax.set_ylim(0, 1)  # Вероятности в диапазоне [0, 1]
+        ax.set_title('Station Probabilities')
+        ax.set_ylim(0, 1)
         
         fig.canvas.draw()
 

@@ -5,22 +5,31 @@ import numpy as np
 from stable_baselines3.common.utils import obs_as_tensor
 from matplotlib import pyplot as plt
 
+import torch as th
+from stable_baselines3.common.utils import obs_as_tensor
+
+import torch as th
+from stable_baselines3.common.utils import obs_as_tensor
+
 def predict_proba(model, state, lstm_states, episode_start):
     states = (th.tensor(lstm_states[0], dtype=th.float32, device=model.policy.device),
               th.tensor(lstm_states[1], dtype=th.float32, device=model.policy.device))
     episode_starts = th.tensor(episode_start, dtype=th.float32, device=model.policy.device)
     obs = obs_as_tensor(state, model.policy.device)
     dis, _ = model.policy.get_distribution(obs, states, episode_starts)
-    probs = dis.distribution.probs
-    return probs.detach().cpu().numpy()
+    
+    probs_list = [dist.probs for dist in dis.distribution]
+    station_probs = probs_list[0]  # Вероятности для станций (размер: [num_nodes])
+    
+    return station_probs.detach().cpu().numpy()  # Возвращаем только [num_nodes]
 
 def add_bar_chart_to_image(img, probs):
     fig, ax = plt.subplots(figsize=(5, 2))
     actions = np.arange(len(probs))
     ax.bar(actions, probs, color='blue')
-    ax.set_xlabel('Actions')
+    ax.set_xlabel('Stations')
     ax.set_ylabel('Probability')
-    ax.set_title('Action Probabilities')
+    ax.set_title('Station Probabilities')
     ax.set_ylim(0, 1)
     fig.tight_layout()
 
