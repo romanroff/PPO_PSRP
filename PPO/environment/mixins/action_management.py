@@ -18,10 +18,10 @@ class ActionManagement:
         full_fill_up = self.max_capacities - self.init_capacities
         selected_temp_load = self.temp_load[actions, :].squeeze(0)
         max_possible_delivery = torch.min(full_fill_up[actions, :].squeeze(0), selected_temp_load)
-        selected_delivery = delivery_percent * self.max_capacities[actions, :].squeeze(0)
+        selected_delivery = delivery_percent * self.temp_load[actions, :].squeeze(0)
         self.delivery = torch.min(selected_delivery, max_possible_delivery)
         self.init_capacities[actions] += self.delivery
-        self.temp_load[actions, :] -= self.delivery.type(self.temp_load.dtype)
+        self.temp_load -= self.delivery.type(self.temp_load.dtype)
         self.temp_load[self.temp_load <= 0.01] = 0
 
     def _handle_depot_visits(self, actions):
