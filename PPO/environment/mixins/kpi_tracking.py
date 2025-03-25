@@ -148,7 +148,12 @@ class KPITracking:
             self.restricted_station = -1
         elif len(self.action_history) > 1:
             prev_action = self.action_history[-2]
-            if prev_action[1] == current_action[1] and current_action[1] != self.depots:
-                self.revisit = -10
+            same_vehicle = prev_action[0] == current_action[0]
+            same_node = prev_action[1] == current_action[1]
+            not_in_depot = current_action[1] != self.depots
+            not_day_end = prev_action[-1] != 1 and current_action[-1] != 1
+            
+            if  same_vehicle and same_node and not_in_depot and not_day_end:
+                self.revisit = -2
         
         return self.time_end + self.empty_load + self.restricted_station + self.revisit
