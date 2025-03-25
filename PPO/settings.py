@@ -12,13 +12,16 @@ KEYS_TO_LOG = [
     'average_delivery',
 ]
 
-REWARDS_TO_LOG = [    'capacity_rewards',
+REWARDS_TO_LOG = [   
+    #  'capacity_rewards',
     'distance_rewards',
+    'dry_runs_penalties',
+    'closeness',
     'time_end_penalties',
     'empty_load_penalties',
     'full_load_penalties',
-    'dry_runs_penalties',
-    'restricted_station_penalties',
+
+    # 'restricted_station_penalties',
     'revisit_penalties']
 
 PARAMETERS_DICT = {

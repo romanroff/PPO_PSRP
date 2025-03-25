@@ -8,7 +8,7 @@ class StateUtils:
 
     def _set_seed(self, seed):
         torch.manual_seed(seed)
-        self.device = torch.device("cpu")  #"cuda:0" if torch.cuda.is_available() else
+        self.device = torch.device("cpu")
 
     def _unpack_batch(self):
         self.positions, self.weight_matrixes, self.daily_demands, \
@@ -16,9 +16,18 @@ class StateUtils:
             self.service_times, self.min_capacities, self.max_capacities, \
             self.init_capacities, self.vehicle_compartments = self.batch
 
+        self.daily_demands = self.daily_demands[:, 1:, :]
+        self.min_capacities = self.min_capacities[1:, :]
+        self.max_capacities = self.max_capacities[1:, :]
+        self.init_capacities = self.init_capacities[1:, :]
+        self.num_stations = self.num_nodes - 1
+
+        self.vehicle_compartments = self.vehicle_compartments[:, 0, :]
+        # self.working_time = self.working_time[0].unsqueeze(0)
+        # print(self.vehicle_compartments)
+
     def _init_tracking_variables(self):
-        # Initialize KPI tracking variables
-        self.action_history = [0]
+        self.action_history = [(0, 0, torch.zeros(self.products_count, device=self.device), 0)]
         self.step_count = 0
         self.total_travel_distance = torch.zeros(1, device=self.device)
         self.total_stock_level = torch.zeros((self.planning_horizon), device=self.device)
@@ -36,6 +45,10 @@ class StateUtils:
         self.restricted_station = 0
         self.revisit = 0
         self.dry_runs_penalty = 0
+        self.closeness = 0
+        # Добавляем переменные для визуальной дискретизации
+        self.render_steps = []  # Список визуальных шагов
+        self.render_vehicle_locations = None  # Временные локации машин для рендера
 
     def _initialize_tensors(self):
         self.positions = self.positions.to(self.device)
@@ -57,16 +70,17 @@ class StateUtils:
     def _initialize_variables(self):
         self.cur_day = torch.zeros(1, dtype=torch.long, device=self.device)
         self.dry_runs_duration = 0
-        self.current_location = self.depots
         self.vehicles = torch.ones(1, dtype=torch.long, device=self.device) * self.k_vehicles * self.max_trips
-        self.temp_vehicle = (self.vehicles - 1) % self.max_trips
-        self.cur_remaining_time = self.working_time[self.temp_vehicle]
-        self.load = self.vehicle_compartments[self.temp_vehicle].squeeze(0)
+        self.cur_remaining_time = self.working_time.clone()
+        self.temp_load = self.vehicle_compartments.clone()
         self.demands = self.daily_demands[self.cur_day].squeeze()
-
+        
+        self.vehicle_locations = torch.full((self.k_vehicles,), self.depots.item(), dtype=torch.long, device=self.device)
+        # Инициализируем render_vehicle_locations
+        self.render_vehicle_locations = self.vehicle_locations.clone()
+        
         self.mock_edge_matrix()
-
-        self.update_edges()
+        self.update_edges(0)
 
     def _calculate_initial_state(self):
         self.actions_list = [torch.tensor([0], device=self.device)]
@@ -74,27 +88,23 @@ class StateUtils:
         self.dry_runs_dict = torch.zeros(self.planning_horizon, device=self.device)
         self.actions_daily = torch.zeros(1, device=self.device)
         self.loss_dry_runs = torch.zeros(1, device=self.device)
-        self.delivery = torch.zeros((1, self.products_count), device=self.device)
+        self.delivery = torch.zeros(self.products_count, device=self.device)
 
-        self.dist_to_depot = self.weight_matrixes[self.depots].squeeze()
-        cur_to_any_time = self.weight_matrixes[self.current_location].squeeze()
-        self.possible_action_time = cur_to_any_time + self.service_times + self.dist_to_depot
-
-        # Изменяем размерность temp_load
-        self.temp_load = self.load.clone()  # Размерность: [products_count]
-
-    def update_edges(self):
-        temp_hour = self.working_hours[self.temp_vehicle] - self.cur_remaining_time / (60 * 60)
-        temp_hour = temp_hour.type(torch.int32)
+    def update_edges(self, vehicle):
+        temp_hour = self.working_hours[vehicle].item() - self.cur_remaining_time[vehicle].item() / (60 * 60)
+        temp_hour = torch.tensor(temp_hour, dtype=torch.int32, device=self.device)
+        temp_hour_max = self.daily_matrixes.shape[1] - 1
+        temp_hour = torch.clamp(temp_hour, min=0, max=temp_hour_max)
         self.weight_matrixes = self.daily_matrixes[self.cur_day, temp_hour].squeeze(0)
         self.edge_indices = (self.weight_matrixes > 0).nonzero(as_tuple=False).t().contiguous()
-        time_for_vehicle = self.working_time[self.temp_vehicle]
-        self.edge_features = (self.weight_matrixes / time_for_vehicle)[
+        time_for_vehicle = self.working_time[vehicle]
+        self.edge_features = (self.weight_matrixes / self.weight_matrixes.max().item())[
             self.edge_indices[0], self.edge_indices[1]].unsqueeze(-1).float()
 
     def mock_edge_matrix(self):
-        # Create daily_matrixes
-        temp_hour = int(self.working_hours[self.temp_vehicle].item())
+        temp_hour = int(self.working_hours.max().item())
+        if temp_hour <= 0:
+            temp_hour = 1
         self.daily_matrixes = torch.stack([self.weight_matrixes] * self.planning_horizon * (temp_hour + 1)).reshape(
             self.planning_horizon, temp_hour + 1, self.num_nodes, self.num_nodes
         ).to(self.device)

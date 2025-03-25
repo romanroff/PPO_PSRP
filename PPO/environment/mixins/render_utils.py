@@ -1,164 +1,226 @@
-import torch
-import numpy as np
 import matplotlib.pyplot as plt
-
+import networkx as nx
+import numpy as np
 from PIL import Image
+import torch
 
 class RenderUtils:
-    def draw_distance_matrix(self, draw, font):
-        matrix_size = 200
-        matrix_pos = (600, 0)  # Position in the top right corner
-        cell_size = matrix_size // self.num_nodes
+    def __init__(self):
+        self.figsize = (16, 10)
+        self.graph_width = 0.6
+        self.info_width = 0.4
+        self.bar_height = 0.3
 
-        current_day = self.cur_day.item()
-        current_vehicle = self.temp_vehicle.item()
-        current_matrix = self.daily_matrixes[current_day, current_vehicle].cpu().numpy()
+    def render(self, env, probs=None, mode='rgb_array'):
+        """
+        Возвращает список кадров для каждого положения машины на основе последнего шага в render_steps.
+        """
+        frames = []
 
-        # Find the minimum distance (excluding self-distances)
-        min_distance = np.min(current_matrix[current_matrix > 0])
+        # Вычисляем начальные позиции машин (все в депо, если нет шагов)
+        if not env.render_steps:
+            vehicle_positions = torch.full((env.k_vehicles,), env.depots.item(), dtype=torch.long, device=env.device)
+            frames.append(self._render_single_frame(env, [], vehicle_positions, probs))
+            return frames
 
-        # Get the current and previous actions
-        current_action = self.current_location.item()
-        previous_action = self.action_history[-2] if len(self.action_history) > 1 else None
+        # Определяем текущую машину и последний шаг
+        current_vehicle = env.action_history[-1][0] if env.action_history else 0
+        last_step = env.render_steps[-1]
+        start = last_step['start']
+        end = last_step['end']
+        end_day_flag = last_step['end_day_flag']
+        vehicle = last_step['vehicle']
 
-        for i in range(self.num_nodes):
-            for j in range(self.num_nodes):
-                x = matrix_pos[0] + j * cell_size
-                y = matrix_pos[1] + i * cell_size
-                value = current_matrix[i, j]
+        # Вычисляем текущие позиции машин на основе всех шагов в render_steps
+        vehicle_positions = torch.full((env.k_vehicles,), env.depots.item(), dtype=torch.long, device=env.device)
+        for step in env.render_steps:
+            v = step['vehicle']
+            vehicle_positions[v] = step['end']
+            if step['end_day_flag'] and step['end'] != env.depots.item():
+                vehicle_positions[v] = env.depots.item()
 
-                # Choose color based on whether it's the minimum distance, the agent's action, or both
-                if previous_action is not None and i == previous_action and j == current_action:
-                    if value == min_distance:
-                        color = (128, 0, 128)  # Purple for agent's action on minimum distance
-                    else:
-                        color = (0, 255, 0)  # Green for agent's action
-                elif value == min_distance:
-                    color = (255, 0, 0)  # Red for minimum distance
-                elif i == j:
-                    color = (200, 200, 200)  # Grey for self-distance
-                else:
-                    color = (255, 255, 255)  # White for other distances
+        # Копия позиций для промежуточных состояний
+        temp_positions = vehicle_positions.clone()
 
-                draw.rectangle([x, y, x + cell_size, y + cell_size], fill=color, outline=(0, 0, 0))
+        # Кадр 1: Перемещение на станцию (start -> end)
+        if start != end and vehicle == current_vehicle:
+            render_history = [(start, end, vehicle, False)]
+            temp_positions[vehicle] = end
+            frames.append(self._render_single_frame(env, render_history, temp_positions.clone(), probs))
 
-                # Draw the distance value
-                text = f"{value:.1f}"
-                text_width = draw.textlength(text, font=font)
-                text_height = font.size
-                text_x = x + (cell_size - text_width) / 2
-                text_y = y + (cell_size - text_height) / 2
-                draw.text((text_x, text_y), text, fill=(0, 0, 0), font=font)
+        # Кадр 2: Возврат в депо (end -> depot), если end_day_flag и не в депо
+        if end_day_flag and end != env.depots.item() and vehicle == current_vehicle:
+            render_history = [(end, env.depots.item(), vehicle, True)]
+            temp_positions[vehicle] = env.depots.item()
+            frames.append(self._render_single_frame(env, render_history, temp_positions.clone(), probs))
 
-        # Draw matrix title
-        title = f"Distance Matrix (Day {current_day + 1}, Vehicle {current_vehicle + 1})"
-        draw.text((matrix_pos[0], matrix_pos[1] - 20), title, fill=(0, 0, 0), font=font)
+        # Если день закончился полностью, показываем все машины в депо
+        if env.day_end and len(frames) > 0:
+            render_history = []  # Пустой граф, так как все действия завершены
+            temp_positions[:] = env.depots.item()
+            frames.append(self._render_single_frame(env, render_history, temp_positions.clone(), probs))
 
-        # Draw legend
-        legend_y = matrix_pos[1] + matrix_size + 10
-        draw.rectangle([matrix_pos[0], legend_y, matrix_pos[0] + 20, legend_y + 20], fill=(255, 0, 0),
-                       outline=(0, 0, 0))
-        draw.text((matrix_pos[0] + 25, legend_y), "Min Distance", fill=(0, 0, 0), font=font)
+        # Если нет новых действий, возвращаем один кадр с текущими позициями
+        if not frames:
+            frames.append(self._render_single_frame(env, [], temp_positions.clone(), probs))
 
-        draw.rectangle([matrix_pos[0], legend_y + 25, matrix_pos[0] + 20, legend_y + 45], fill=(0, 255, 0),
-                       outline=(0, 0, 0))
-        draw.text((matrix_pos[0] + 25, legend_y + 25), "Agent Action", fill=(0, 0, 0), font=font)
+        # Очистка render_steps в конце дня
+        if env.day_end:
+            env.render_steps.clear()
 
-        draw.rectangle([matrix_pos[0], legend_y + 50, matrix_pos[0] + 20, legend_y + 70], fill=(128, 0, 128),
-                       outline=(0, 0, 0))
-        draw.text((matrix_pos[0] + 25, legend_y + 50), "Agent Action on Min Distance", fill=(0, 0, 0), font=font)
+        return frames
 
-        # Draw agent action information
-        if previous_action is not None:
-            action_distance = current_matrix[previous_action, current_action]
-            action_type = "min distance" if action_distance == min_distance else "normal"
-            action_info = f"Agent moved from {previous_action} to {current_action} ({action_type})"
-            draw.text((matrix_pos[0], legend_y + 75), action_info, fill=(0, 0, 0), font=font)
+    def _render_single_frame(self, env, render_history, vehicle_positions, probs):
+        """Вспомогательный метод для создания одного кадра."""
+        fig = plt.figure(figsize=self.figsize)
+        gs = fig.add_gridspec(3, 2, width_ratios=[self.info_width, self.graph_width], 
+                              height_ratios=[0.5, 0.2, self.bar_height])
 
-    def draw_text(self, draw, font):
-        temp_load_str = ''
-        for e in torch.round(self.temp_load, decimals=2).tolist():
-            temp_load_str += str(e)
-        temp_hour = self.working_hours[self.temp_vehicle] - self.cur_remaining_time / (60 * 60)
-        temp_hour = int(temp_hour.item())
-        text_info = [
-            f"Temp load: {temp_load_str}",
-            f"Step: {self.step_count}",
-            f"Current Day: {self.cur_day[0].item()}",
-            f"Remaining Time: {int(self.cur_remaining_time[0].item())}",
-            f"Vehicles Left: {int(self.vehicles[0].item())}",
-            f"Total Travel Distance: {int(self.total_travel_distance[0].item() / (60))}",
-            f"Total Dry Runs: {int(self.total_dry_runs[0].item())}",
-            f"Temp hour: {temp_hour}",
-        ]
+        ax_graph = fig.add_subplot(gs[0, 1])
+        ax_info = fig.add_subplot(gs[0:2, 0])
+        ax_hist = fig.add_subplot(gs[1, 1])
+        ax_probs = fig.add_subplot(gs[2, :])
 
-        for i, text in enumerate(text_info):
-            draw.text((10, 10 + i * 20), text, fill=(0, 0, 0), font=font)
+        self._draw_graph(ax_graph, env, render_history, vehicle_positions)
+        self.draw_info(ax_info, env)
+        self.draw_station_histograms(ax_hist, env, vehicle_positions)
+        if probs is not None:
+            self.draw_probs(ax_probs, probs, env.num_nodes)
 
-    def draw_nodes(self, draw, scale, font):
-        for i in range(self.num_nodes):
-            x, y = self.positions[i].cpu().numpy() * scale
-            x += 50
-            y += 50
-            color = (0, 0, 255) if i == self.depots[0].item() else (0, 255, 0)
-            draw.ellipse([x - 5, y - 5, x + 5, y + 5], fill=color)
+        ax_info.axis('off')
+        ax_hist.axis('off')
+        if probs is None:
+            ax_probs.axis('off')
 
-            init_cap = self.init_capacities[i].cpu().numpy()
-            # Получаем delivery только для текущей станции и первого продукта
-            delivery = self.delivery.cpu().numpy().squeeze() if i == self.current_location.item() else 0
-            if isinstance(delivery, np.ndarray):  # Если delivery — массив
-                delivery_value = delivery[0] if len(delivery) > 0 else 0  # Берем первый продукт
-            else:
-                delivery_value = delivery  # Если скаляр, используем напрямую
-            
-            info_str = " ".join([f"{int(ic)}({int(delivery_value if j == 0 else 0)}), " for j, ic in enumerate(init_cap)])
-
-            draw.text((x - 40, y - 25), f"№{i}   "+info_str, fill=(0, 0, 0), font=font)
-    def draw_edges(self, draw, scale, font):
-        if len(self.action_history) == 1:
-            start = 0
-        else:
-            start = self.action_history[-2]
-        end = self.action_history[-1]
-
-        dist = f"{int(self.get_distance(start, end).cpu().item() / (60))}"
-        start_pos = self.positions[start].cpu().numpy() * scale + 50
-        end_pos = self.positions[end].cpu().numpy() * scale + 50
-        self.draw_line_with_text(draw, tuple(start_pos), tuple(end_pos), dist, font)
-
-    def draw_line_with_text(self, draw, start, end, text, font, line_color=(255, 0, 0), text_color=(0, 0, 0)):
-        draw.line([start, end], fill=line_color, width=2)
-
-        mid_x = (start[0] + end[0]) / 2
-        mid_y = (start[1] + end[1]) / 2
-
-        text_width = int(draw.textlength(text, font=font))
-        text_height = int(font.size)
-
-        text_x = int(mid_x - text_width / 2)
-        text_y = int(mid_y - text_height - 5)
-
-        draw.text((text_x, text_y), text, font=font, fill=text_color)
-
-    def plot_action_probabilities_on_image(self, img, probs):
-        fig, ax = plt.subplots(figsize=(2, 2))
-        station_probs = probs.sum(axis=1)  # Суммируем вероятности по количеству топлива для каждой станции
-        actions = np.arange(len(station_probs))
-        ax.bar(actions, station_probs, color='blue')
-        ax.set_xlabel('Stations')
-        ax.set_ylabel('Probability')
-        ax.set_title('Station Probabilities')
-        ax.set_ylim(0, 1)
-        
+        plt.tight_layout()
         fig.canvas.draw()
+        img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        img = img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        plt.close(fig)
+        return Image.fromarray(img)
 
-        # Конвертируем график в изображение и помещаем его на img
-        action_img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        action_img = action_img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-        action_img = Image.fromarray(action_img)
-        
-        img.paste(action_img.resize((200, 200)), (10, 10))  # Вставляем график в левый верхний угол
+    def _draw_graph(self, ax, env, render_history, vehicle_positions):
+        G = nx.DiGraph()
 
-        plt.close(fig)  # Закрываем график, чтобы освободить ресурсы
+        # Добавляем узлы
+        for i in range(env.num_nodes):
+            G.add_node(i, pos=env.positions[i].cpu().numpy())
 
-        return img
+        # Добавляем ребра из render_history
+        for start, end, vehicle, is_return in render_history:
+            G.add_edge(start, end, vehicle=vehicle, is_return=is_return, 
+                       weight=int(env.get_distance(start, end).cpu().item() / 60))
+
+        # Отрисовка узлов
+        pos = nx.get_node_attributes(G, 'pos')
+        depot = env.depots.item()
+        nx.draw_networkx_nodes(G, pos, nodelist=[depot], node_color='skyblue', node_size=500, ax=ax, label='Depot')
+        nx.draw_networkx_nodes(G, pos, nodelist=[i for i in range(env.num_nodes) if i != depot], 
+                               node_color='lightgreen', node_size=300, ax=ax, label='Stations')
+
+        # Отрисовка ребер
+        edges_regular = [(u, v) for (u, v, d) in G.edges(data=True) if not d['is_return']]
+        edges_return = [(u, v) for (u, v, d) in G.edges(data=True) if d['is_return']]
+        nx.draw_networkx_edges(G, pos, edgelist=edges_regular, ax=ax, edge_color='gray', width=2)
+        nx.draw_networkx_edges(G, pos, edgelist=edges_return, ax=ax, edge_color='orange', width=2, style='dashed')
+
+        # Подписи узлов и ребер
+        nx.draw_networkx_labels(G, pos, font_size=10, font_weight='bold', ax=ax)
+        edge_labels = {(u, v): f"{d['weight']} min" for (u, v, d) in G.edges(data=True)}
+        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8, ax=ax)
+
+        # Отрисовка машин
+        vehicle_colors = ['red', 'green', 'blue', 'yellow']
+        for v in range(env.k_vehicles):
+            loc = vehicle_positions[v].item()
+            x, y = pos[loc]
+            ax.scatter(x, y, c=vehicle_colors[v % len(vehicle_colors)], s=100, marker='s', 
+                       label=f'Vehicle {v}' if v == 0 else None)
+            ax.text(x, y - 0.05, f"V{v}", fontsize=8, ha='center', va='bottom', 
+                    color=vehicle_colors[v % len(vehicle_colors)])
+
+        ax.legend()
+        ax.set_title("Agent Movements (Current Step)")
+
+    def draw_info(self, ax, env):
+        vehicle = env.action_history[-1][0] if env.action_history else 0
+        temp_load_str = ' '.join([str(round(e, 2)) for e in env.temp_load[vehicle].tolist()])
+        temp_hour = env.working_hours[vehicle].item() - env.cur_remaining_time[vehicle].item() / (60 * 60)
+        temp_hour = int(temp_hour)
+        last_action = env.action_history[-1] if env.action_history else (0, 0, torch.zeros(env.products_count), 0)
+        station_idx, delivery_percents, end_day_flag = last_action[1], last_action[2], last_action[3]
+        delivery_str = ' '.join([f"P{i+1}: {int(p)}%" for i, p in enumerate(delivery_percents) if p > 0])
+
+        # Вычисляем позиции машин для текста из render_steps
+        vehicle_positions = torch.full((env.k_vehicles,), env.depots.item(), dtype=torch.long, device=env.device)
+        for step in env.render_steps:
+            v = step['vehicle']
+            vehicle_positions[v] = step['end']
+            if step['end_day_flag'] and step['end'] != env.depots.item():
+                vehicle_positions[v] = env.depots.item()
+        vehicle_locs = ' '.join([f"V{i}:{loc.item()}" for i, loc in enumerate(vehicle_positions)])
+
+        info_text = (
+            f"Load: {temp_load_str}\n"
+            f"Step: {env.step_count}\n"
+            f"Day: {env.cur_day[0].item()}\n"
+            f"Time Left: {int(env.cur_remaining_time[vehicle].item())} s\n"
+            f"Vehicle Locs: {vehicle_locs}\n"
+            f"Distance: {int(env.total_travel_distance[0].item() / 60)} min\n"
+            f"Dry Runs: {int(env.total_dry_runs[0].item())}\n"
+            f"Hour: {temp_hour}\n"
+            f"End Day: {'Yes' if env.day_end else 'No'}\n"
+            f"Delivery: {delivery_str if delivery_str else 'None'}"
+        )
+
+        kpis = env.get_kpis()
+        rewards_text = (
+            f"\nRewards & Penalties:\n"
+            f"Distance: {kpis['distance_rewards']:.2f}\n"
+            f"Capacity: {kpis['capacity_rewards']:.2f}\n"
+            f"Dry Runs: {kpis['dry_runs_penalties']:.2f}\n"
+            f"Time End: {kpis['time_end_penalties']:.2f}\n"
+            f"Empty Load: {kpis['empty_load_penalties']:.2f}\n"
+            f"Restricted: {kpis['restricted_station_penalties']:.2f}\n"
+            f"Revisit: {kpis['revisit_penalties']:.2f}"
+        )
+
+        full_text = info_text + rewards_text
+        ax.text(0.1, 0.95, full_text, transform=ax.transAxes, fontsize=10, verticalalignment='top')
+
+    def draw_station_histograms(self, ax, env, vehicle_positions):
+        num_stations = env.num_stations
+        vehicle = env.action_history[-1][0] if env.action_history else 0
+        current_loc = vehicle_positions[vehicle].item()
+
+        for i in range(num_stations + 1):
+            if i == env.depots.item():
+                continue
+            station_idx = i - 1
+            init_cap = env.init_capacities[station_idx].cpu().numpy()
+            max_cap = env.max_capacities[station_idx].cpu().numpy()
+            delivery = env.delivery.cpu().numpy() if i == current_loc else np.zeros_like(init_cap)
+
+            sub_ax = ax.inset_axes([0.2 * (station_idx % 5), 0.5 - 0.5 * (station_idx // 5), 0.18, 0.45])
+            products = np.arange(env.products_count)
+            sub_ax.bar(products, init_cap, width=0.4, color='skyblue', label='Current')
+            sub_ax.bar(products, delivery, width=0.4, bottom=init_cap, color='lightcoral', label='Delivered')
+            sub_ax.plot(products, max_cap, 'r--', label='Max')
+            sub_ax.set_ylim(0, max(max_cap) * 1.3)
+            sub_ax.set_xticks(products)
+            sub_ax.set_xticklabels([f"P{j+1}" for j in products], fontsize=6)
+            sub_ax.set_title(f"Station {i}", fontsize=8)
+            if station_idx == 0:
+                sub_ax.legend(fontsize=6)
+
+    def draw_probs(self, ax, probs, num_nodes):
+        actions = np.arange(num_nodes)
+        labels = ['Depot'] + [f'S{i+1}' for i in range(num_nodes - 1)]
+        ax.bar(actions, probs, color=['salmon'] + ['cornflowerblue'] * (num_nodes - 1), edgecolor='gray')
+        ax.set_xlabel('Actions')
+        ax.set_ylabel('Probability')
+        ax.set_title('Action Probabilities')
+        ax.set_ylim(0, 1)
+        ax.set_xticks(actions)
+        ax.set_xticklabels(labels, rotation=45)
+        ax.grid(True, linestyle='--', alpha=0.5)

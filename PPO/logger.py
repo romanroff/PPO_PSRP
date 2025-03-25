@@ -29,44 +29,50 @@ class TensorboardGradientCallback(BaseCallback):
         # Закрываем TensorBoard
         self.writer.close()
 
+
 class InfoLoggerCallback(BaseCallback):
     def __init__(self, keys_to_log, verbose=0):
         super(InfoLoggerCallback, self).__init__(verbose)
         self.keys_to_log = keys_to_log
+        self.episode_infos = {key: [] for key in self.keys_to_log}  # Словарь для накопления значений
 
     def _on_step(self) -> bool:
-        info_values = {key: [] for key in self.keys_to_log}
+        # Собираем значения из infos для текущего шага
+        info = self.locals['infos'][0]  # Предполагаем одну среду, берем первый элемент
+        for key in self.keys_to_log:
+            if key in info:
+                self.episode_infos[key].append(info[key])  # Накапливаем значения
 
-        for info in self.locals['infos']:
+        # Проверяем, завершился ли эпизод
+        if self.locals['dones'][0]:  # Если эпизод закончился
             for key in self.keys_to_log:
-                if key in info:
-                    info_values[key].append(info[key])
-
-        for key, values in info_values.items():
-            if values:
-                mean_value = sum(values) / len(values)
-                self.logger.record(f'env_info/{key}', mean_value)
-
+                if self.episode_infos[key]:  # Если есть накопленные значения
+                    mean_value = sum(self.episode_infos[key]) / len(self.episode_infos[key])
+                    self.logger.record(f'episode_info/{key}', mean_value)
+                self.episode_infos[key] = []  # Сбрасываем для нового эпизода
         return True
+
+
 
 class RewardsCallback(BaseCallback):
     def __init__(self, keys_to_log, verbose=0):
         super(RewardsCallback, self).__init__(verbose)
         self.keys_to_log = keys_to_log
+        self.episode_rewards = {key: 0.0 for key in keys_to_log}  # Словарь для накопления наград
 
     def _on_step(self) -> bool:
-        info_values = {key: [] for key in self.keys_to_log}
+        # Собираем награды из infos для текущего шага
+        info = self.locals['infos'][0]  # Предполагаем одну среду, берем первый элемент
+        for key in self.keys_to_log:
+            if key in info:
+                self.episode_rewards[key] += info[key]  # Накапливаем награды
 
-        for info in self.locals['infos']:
+        # Проверяем, завершился ли эпизод
+        if self.locals['dones'][0]:  # Если эпизод закончился
             for key in self.keys_to_log:
-                if key in info:
-                    info_values[key].append(info[key])
-
-        for key, values in info_values.items():
-            if values:
-                mean_value = sum(values) / len(values)
-                self.logger.record(f'rewards/{key}', mean_value)
-
+                # Логируем сумму наград за эпизод
+                self.logger.record(f'episode/{key}', self.episode_rewards[key])
+                self.episode_rewards[key] = 0.0  # Сбрасываем для нового эпизода
         return True
 
 class ActionProbabilityCallback(BaseCallback):
@@ -76,3 +82,5 @@ class ActionProbabilityCallback(BaseCallback):
     def _on_step(self) -> bool:
         print("Action probabilities:", self.locals['log_probs'])
         return True
+    
+

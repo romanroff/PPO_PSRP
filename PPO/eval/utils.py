@@ -1,15 +1,8 @@
-
 import torch as th
 from PIL import Image
 import numpy as np
 from stable_baselines3.common.utils import obs_as_tensor
 from matplotlib import pyplot as plt
-
-import torch as th
-from stable_baselines3.common.utils import obs_as_tensor
-
-import torch as th
-from stable_baselines3.common.utils import obs_as_tensor
 
 def predict_proba(model, state, lstm_states, episode_start):
     states = (th.tensor(lstm_states[0], dtype=th.float32, device=model.policy.device),
@@ -19,9 +12,9 @@ def predict_proba(model, state, lstm_states, episode_start):
     dis, _ = model.policy.get_distribution(obs, states, episode_starts)
     
     probs_list = [dist.probs for dist in dis.distribution]
-    station_probs = probs_list[0]  # Вероятности для станций (размер: [num_nodes])
-    
-    return station_probs.detach().cpu().numpy()  # Возвращаем только [num_nodes]
+    station_probs = probs_list[1]  # Вероятности для станций (размер: [num_nodes] или [num_envs, num_nodes])
+    station_probs = station_probs.squeeze()  # Удаляем лишние размерности
+    return station_probs.detach().cpu().numpy()  # Возвращаем одномерный массив [num_nodes]
 
 def add_bar_chart_to_image(img, probs):
     fig, ax = plt.subplots(figsize=(5, 2))

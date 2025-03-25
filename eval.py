@@ -30,7 +30,7 @@ def main():
     env = DummyVecEnv([lambda: env])  # Оборачиваем в DummyVecEnv
 
     # Загрузка модели
-    model = RecurrentPPO.load(rf"models/new_reward_nsteps-{args.n_steps}_nodes-{args.n}_veh-{args.veh}/best_model.zip", env=env)
+    model = RecurrentPPO.load(rf"models/GNN_nsteps-{args.n_steps}_nodes-{args.n}_veh-{args.veh}/best_model.zip", env=env)
     
     # Проверка совместимости пространства действий
     if not isinstance(env.action_space, model.policy.action_space.__class__):
