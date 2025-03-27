@@ -18,8 +18,10 @@ REWARDS_TO_LOG = [
     'time_end_penalties',
     'empty_load_penalties',
     # 'restricted_station_penalties',
-    'revisit_penalties',
-    'depot_revisit']
+    'revisit_1',
+    'revisit_2',
+    'revisit_3',
+    'revisit_4',]
 
 PARAMETERS_DICT = {
     'num_nodes': 5,

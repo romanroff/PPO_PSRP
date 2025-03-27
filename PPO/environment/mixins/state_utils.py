@@ -44,6 +44,10 @@ class StateUtils:
         self.empty_load = 0
         self.restricted_station = 0
         self.revisit = 0
+        self.revisit_1 = 0
+        self.revisit_2 = 0
+        self.revisit_3 = 0
+        self.revisit_4 = 0
         self.depot_revisit = 0
         self.dry_runs_penalty = 0
         self.closeness = 0
@@ -74,11 +78,16 @@ class StateUtils:
         self.cur_remaining_time = self.working_time.clone()
         self.temp_load = self.vehicle_compartments.clone()
         self.demands = self.daily_demands[self.cur_day].squeeze()
-        
+
+        self.vehicle_final_locations = torch.full((self.k_vehicles,), self.depots.item(), dtype=torch.long, device=self.device)
         self.vehicle_updated_locations = torch.full((self.k_vehicles,), self.depots.item(), dtype=torch.long, device=self.device)
         self.vehicle_prev_locations = torch.full((self.k_vehicles,), self.depots.item(), dtype=torch.long, device=self.device)
-        self.vehicles_updated_day_end = torch.full((self.k_vehicles,), False, dtype=torch.bool, device=self.device)
-        self.vehicles_prev_day_end = torch.full((self.k_vehicles,), False, dtype=torch.bool, device=self.device)
+        self.updated_day_end = False
+        self.prev_day_end = False
+
+        self.station_idx = self.depots
+
+        self.dry_days = torch.zeros(self.num_stations, dtype=torch.float32, device=self.device)  # [num_stations]
 
         self.mock_edge_matrix()
         self.update_edges(0)

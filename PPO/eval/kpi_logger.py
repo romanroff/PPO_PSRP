@@ -10,7 +10,6 @@ def add_vertical_lines(ax, new_day_series, alpha=0.3):
 
 
 def log_kpi_metrics(df, capacities_list, args):
-    print(df.columns)
     fig, axes = plt.subplots(4, 1, figsize=(14*1.5, 12*1.5))
     axes = axes.flatten()
 

@@ -51,12 +51,8 @@ else:
         "features_extractor_class": GATFeatureExtractor,
         "features_extractor_kwargs": {"embedding_size": 256},
         "net_arch": [256,256,256],
-        # "net_arch": {
-        #     "pi": [128, 64, 32],  # 3 слоя для actor
-        #     "vf": [128, 64]        # 2 слоя для critic
-        # },
         # "lstm_hidden_size": 256,       # увеличенный LSTM
-        # "n_lstm_layers": 3
+        "n_lstm_layers": 2
     },
         # learning_rate=lr_schedule,
         # clip_range=clip_range_schedule,

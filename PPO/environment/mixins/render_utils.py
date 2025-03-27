@@ -182,7 +182,7 @@ class RenderUtils:
             f"Time End: {kpis['time_end_penalties']:.2f}\n"
             f"Empty Load: {kpis['empty_load_penalties']:.2f}\n"
             f"Restricted: {kpis['restricted_station_penalties']:.2f}\n"
-            f"Revisit: {kpis['revisit_penalties']:.2f}"
+            # f"Revisit: {kpis['revisit_penalties']:.2f}"
         )
 
         full_text = info_text + rewards_text

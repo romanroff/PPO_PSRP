@@ -2,7 +2,7 @@ import time
 import torch
 
 class IRPEnvUtilitiesMixin:
-    def get_state(self, station_idx=0) -> dict:
+    def get_state(self) -> dict:
         # Формируем node_features только из 2D тензоров
         node_features = torch.cat([
             torch.nan_to_num(self.min_capacities / self.max_capacities, 0, posinf=0), 
@@ -21,12 +21,25 @@ class IRPEnvUtilitiesMixin:
         # Формируем отдельный тензор для информации о доставках
         # Обрабатываем доставку, если не депо
         temp_delivery = torch.zeros(self.num_stations, self.products_count)
-        if station_idx != self.depots.item():
-            station_idx_for_capacities = station_idx - 1
+        temp_delivery_percent = torch.zeros(self.num_stations, self.products_count)
+        if self.station_idx != self.depots.item():
+            station_idx_for_capacities = self.station_idx - 1
             temp_delivery[station_idx_for_capacities] = self.delivery / self.max_capacities[station_idx_for_capacities]
-
+            temp_delivery_percent[station_idx_for_capacities] = self.delivery_percents
         node_features = torch.cat([node_features, temp_delivery], dim=1)
+        node_features = torch.cat([node_features, temp_delivery_percent], dim=1)
 
+        #Добавляем фичи депо
+        depot_features = torch.zeros(1, node_features.shape[1], device=node_features.device)
+        node_features = torch.cat([depot_features, node_features], dim=0)  # [ num_nodes, node_base_dim]
+
+        # Добавляем индикаторы машин
+        vehicle_indicators = torch.zeros(self.num_nodes, self.k_vehicles, device=node_features.device)
+        for k, loc in enumerate(self.vehicle_updated_locations):
+            vehicle_indicators[int(loc.item()), k] = 1  # Указываем, где какая машина
+
+        node_features = torch.cat([node_features, vehicle_indicators], dim=-1)  # [ num_nodes, node_base_dim + k_vehicles]
+    
         # Формируем global_features с учетом всех машин
         time_for_vehicle = self.working_time  # Вектор времени для всех машин
         normalized_remaining_time = torch.nan_to_num(self.cur_remaining_time / time_for_vehicle, 0, posinf=0)
@@ -42,7 +55,6 @@ class IRPEnvUtilitiesMixin:
             'edge_index': self.edge_indices,
             'edge_attr': self.edge_features,
             'global_features': global_features,
-            'vehicle_locations': self.vehicle_updated_locations  # Местоположение всех машин
         }
         state_np = self.tensors_to_numpy(state)
         return state_np
@@ -71,8 +83,10 @@ class IRPEnvUtilitiesMixin:
             'dry_runs_penalties':self.dry_runs_penalty,
             'closeness':self.closeness,
             'restricted_station_penalties': self.restricted_station,
-            'revisit_penalties':  self.revisit,
-            'depot_revisit':self.depot_revisit
+            'revisit_1' : self.revisit_1,
+            'revisit_2' : self.revisit_2,
+            'revisit_2' : self.revisit_3,
+            'revisit_3' : self.revisit_4,
         }
         average_routes = self.average_routes(self.station_list)
         kpis['average_stops_per_trip'] /= average_routes + 1e-6
@@ -89,10 +103,10 @@ class IRPEnvUtilitiesMixin:
         return self.weight_matrixes[idx_1, idx_2]
 
     def average_routes(self, seq):
-        seq = [torch.tensor([x], device=self.device) if isinstance(x, (int, float)) else x for x in seq]
+        seq = [torch.tensor([x.item()], device=self.device) if not isinstance(x, (int, float)) else torch.tensor([x], device=self.device) for x in seq]
         seq = torch.cat(seq).tolist()
-        seq.insert(0, 0)
-        seq.insert(-1, 0)
+        # seq.insert(0, 0)
+        # seq.insert(-1, 0)
         count = 0
         in_sequence = False
 

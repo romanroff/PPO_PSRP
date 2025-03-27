@@ -20,8 +20,7 @@ def evaluate_model(model, args):
     steps = 0
     capacities_list, new_day, image_arrays = [], [], []
     kpi_data = {key: [] for key in ['capacity_rewards', 'distance_rewards', 'time_end_penalties', 
-                                    'empty_load_penalties', 'restricted_station_penalties', 
-                                    'revisit_penalties']}
+                                    'empty_load_penalties', 'restricted_station_penalties', ]}
 
     while not done:
         action, lstm_states = model.predict(obs, state=lstm_states, episode_start=episode_starts, deterministic=True)
@@ -34,7 +33,7 @@ def evaluate_model(model, args):
         frames = eval_env.envs[0].render(probs=probs)
         image_arrays.append(frames)  # Добавляем список кадров для текущего шага
         if hasattr(eval_env.envs[0], 'day_end'):
-            print(action, eval_env.envs[0].day_end)
+            print(action, eval_env.envs[0].day_end, eval_env.envs[0].vehicles )
 
         current_action = action[0][1].item()
         visited_actions.add(current_action)

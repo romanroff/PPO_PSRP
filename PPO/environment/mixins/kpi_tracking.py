@@ -1,10 +1,10 @@
 import torch
 
 class KPITracking:
-    def calc_step_kpis(self, station_idx, vehicle):
-        self.station_list.append(station_idx)
+    def calc_step_kpis(self):
+        self.station_list.append(self.station_idx)
 
-        current_location, next_location = self.vehicle_prev_locations[vehicle], self.vehicle_updated_locations[vehicle]
+        current_location, next_location = self.vehicle_prev_locations[self.vehicle], self.vehicle_updated_locations[self.vehicle]
 
         distances = self.get_distance(current_location, next_location)
         self.total_travel_distance += distances
@@ -25,16 +25,13 @@ class KPITracking:
 
         self.total_delivered_quantity += self.delivery.sum()
         if self.delivery.sum().item() > 0:
-            self.total_vehicle_capacities += self.vehicle_compartments[vehicle].sum()
+            self.total_vehicle_capacities += self.vehicle_compartments[self.vehicle].sum()
 
-        self.total_stops += torch.sum(station_idx != self.depots)  # Депо не в диапазоне станций
+        self.total_stops += torch.sum(self.station_idx != self.depots)  # Депо не в диапазоне станций
 
         self.days_completed += (self.cur_day == self.planning_horizon - 1).float()
     
-    def get_reward(self, vehicle):
-        prev_location, upd_location = self.vehicle_prev_locations[vehicle], self.vehicle_updated_locations[vehicle]
-
-        max_distance = self.weight_matrixes.max().item()
+    def get_reward(self):
 
         # Штраф за пересыхание
         if self.day_end:
@@ -42,9 +39,7 @@ class KPITracking:
             dry_stations_mask = torch.any(dry_runs_mask, dim=1)
             num_dry_stations = dry_stations_mask.sum().item()
 
-            # Обновляем количество дней пересыхания только для станций
-            if not hasattr(self, 'dry_days'):
-                self.dry_days = torch.zeros(self.num_stations, dtype=torch.float32, device=self.device)  # [num_stations]
+            self.dry_days = torch.zeros(self.num_stations, dtype=torch.float32, device=self.device)  # [num_stations]
             
             # Увеличиваем счетчик дней для пересохших станций
             self.dry_days += dry_stations_mask.float()
@@ -61,15 +56,7 @@ class KPITracking:
         else:
             self.dry_runs_penalty = 0
 
-        # Наказание за поездку
-        penalties = self.get_penalty()  # Остальные штрафы (time_end, empty_load, restricted_station, revisit)
-
-        distance = self.get_distance(prev_location, upd_location).item()
-        if self.day_end:
-            distance += self.get_distance(upd_location, self.depots).item()
-            
-        normalized_distance = distance / max_distance
-        self.dist = -1 * normalized_distance
+        penalties = self.get_penalty() 
 
         total_reward = self.dry_runs_penalty + self.dist + penalties
         return total_reward
@@ -81,30 +68,28 @@ class KPITracking:
         self.restricted_station = 0
         self.revisit = 0
 
-        current_action = self.action_history[-1]
-        vehicle, station_idx, end_day_flag = current_action[0], current_action[1], current_action[-1]
-    
         # Штраф за превышение времени
-        if self.cur_remaining_time[vehicle].item() <= 0:
+        if self.cur_remaining_time[self.vehicle].item() <= 0:
             self.time_end = -5
         # Штраф за пустую загрузку
-        elif torch.all(self.temp_load[vehicle] == 0) and torch.all(self.delivery == 0):
+        elif torch.all(self.temp_load[self.vehicle] == 0) and torch.all(self.delivery == 0):
             self.empty_load = -5
         # Штраф за ограниченную станцию
-        elif self.restriction_matrix[vehicle, int(station_idx)] == 1:
+        elif self.restriction_matrix[self.vehicle, int(self.station_idx)] == 1:
             self.restricted_station = -1
        
-        elif self.step_count > 1:  # Проверяем историю только если есть предыдущие действия
-            prev_location, upd_location = self.vehicle_prev_locations[vehicle], self.vehicle_updated_locations[vehicle]
-            prev_day_end, upd_day_end = self.vehicles_prev_day_end[vehicle], self.vehicles_updated_day_end[vehicle]
+        # elif self.step_count > 1:  # Проверяем историю только если есть предыдущие действия
+        #     prev_location, upd_location = self.vehicle_prev_locations[self.vehicle], self.vehicle_updated_locations[self.vehicle]
+        #     prev_day_end, upd_day_end = self.prev_day_end[self.vehicle], self.updated_day_end[self.vehicle]
 
-            if prev_location == upd_location and\
-                ((prev_day_end == False and upd_day_end == True) or (prev_day_end == False and upd_day_end == False))and\
-                    prev_location != self.depots and upd_location != self.depots:
-                    self.revisit = -5
+        #     if prev_location == upd_location and\
+        #         ((prev_day_end == False and upd_day_end == True) or (prev_day_end == False and upd_day_end == False))and\
+        #             prev_location != self.depots and upd_location != self.depots:
+        #             self.revisit = -5
 
-            if prev_location == self.depots and upd_location == self.depots and\
-                not(prev_day_end and upd_day_end):
-                self.depot_revisit = -5
+        #     if prev_location == self.depots and upd_location == self.depots and\
+        #         not(prev_day_end and upd_day_end):
+        #         self.depot_revisit = -5
+        revisits = self.revisit_1 + self.revisit_2 + self.revisit_3 + self.revisit_4
 
-        return self.time_end + self.empty_load + self.restricted_station + self.revisit + self.depot_revisit  
+        return self.time_end + self.empty_load + self.restricted_station + revisits #+ self.revisit + self.depot_revisit  
