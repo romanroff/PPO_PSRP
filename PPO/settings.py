@@ -13,16 +13,13 @@ KEYS_TO_LOG = [
 ]
 
 REWARDS_TO_LOG = [   
-    #  'capacity_rewards',
     'distance_rewards',
     'dry_runs_penalties',
-    'closeness',
     'time_end_penalties',
     'empty_load_penalties',
-    'full_load_penalties',
-
     # 'restricted_station_penalties',
-    'revisit_penalties']
+    'revisit_penalties',
+    'depot_revisit']
 
 PARAMETERS_DICT = {
     'num_nodes': 5,

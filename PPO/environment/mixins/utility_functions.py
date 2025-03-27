@@ -5,12 +5,11 @@ class IRPEnvUtilitiesMixin:
     def get_state(self, station_idx=0) -> dict:
         # Формируем node_features только из 2D тензоров
         node_features = torch.cat([
-            torch.nan_to_num(self.max_capacities / self.max_capacities, 0, posinf=0),  # Спрос
-            torch.nan_to_num(self.min_capacities / self.max_capacities, 0, posinf=0),  # Спрос
-            torch.nan_to_num(self.demands / self.max_capacities, 0, posinf=0),  # Спрос
-            torch.nan_to_num((self.init_capacities - self.min_capacities) / self.max_capacities, 0, posinf=0),  # Остатки
+            torch.nan_to_num(self.min_capacities / self.max_capacities, 0, posinf=0), 
+            torch.nan_to_num(self.demands / self.max_capacities, 0, posinf=0),
+            torch.nan_to_num(self.init_capacities / self.max_capacities, 0, posinf=0),  
             (self.init_capacities < self.min_capacities).float(),
-        ], dim=-1).float()  # Размер: [num_stations, 4 * products_count]
+        ], dim=-1).float()
 
         # Формируем отдельный тензор для загрузки всех машин
         temp_load_all_vehicles = self.temp_load.expand(self.num_stations, self.k_vehicles, self.products_count)
@@ -43,7 +42,7 @@ class IRPEnvUtilitiesMixin:
             'edge_index': self.edge_indices,
             'edge_attr': self.edge_features,
             'global_features': global_features,
-            'vehicle_locations': self.vehicle_locations  # Местоположение всех машин
+            'vehicle_locations': self.vehicle_updated_locations  # Местоположение всех машин
         }
         state_np = self.tensors_to_numpy(state)
         return state_np
@@ -72,9 +71,10 @@ class IRPEnvUtilitiesMixin:
             'dry_runs_penalties':self.dry_runs_penalty,
             'closeness':self.closeness,
             'restricted_station_penalties': self.restricted_station,
-            'revisit_penalties':  self.revisit
+            'revisit_penalties':  self.revisit,
+            'depot_revisit':self.depot_revisit
         }
-        average_routes = self.average_routes(self.actions_list)
+        average_routes = self.average_routes(self.station_list)
         kpis['average_stops_per_trip'] /= average_routes + 1e-6
         kpis['average_stops_per_trip'] = round(kpis['average_stops_per_trip'], 1)
         kpis['average_stock_levels'] = kpis['average_stock_levels'].cpu().tolist()
@@ -87,3 +87,21 @@ class IRPEnvUtilitiesMixin:
         idx_1 = node_idx_1.item() if isinstance(node_idx_1, torch.Tensor) else int(node_idx_1)
         idx_2 = node_idx_2.item() if isinstance(node_idx_2, torch.Tensor) else int(node_idx_2)
         return self.weight_matrixes[idx_1, idx_2]
+
+    def average_routes(self, seq):
+        seq = [torch.tensor([x], device=self.device) if isinstance(x, (int, float)) else x for x in seq]
+        seq = torch.cat(seq).tolist()
+        seq.insert(0, 0)
+        seq.insert(-1, 0)
+        count = 0
+        in_sequence = False
+
+        for num in seq:
+            if num != 0:
+                if not in_sequence:
+                    count += 1
+                    in_sequence = True
+            else:
+                in_sequence = False
+
+        return count

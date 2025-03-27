@@ -33,7 +33,8 @@ def evaluate_model(model, args):
         # Получаем список кадров от render
         frames = eval_env.envs[0].render(probs=probs)
         image_arrays.append(frames)  # Добавляем список кадров для текущего шага
-        print(action)
+        if hasattr(eval_env.envs[0], 'day_end'):
+            print(action, eval_env.envs[0].day_end)
 
         current_action = action[0][1].item()
         visited_actions.add(current_action)

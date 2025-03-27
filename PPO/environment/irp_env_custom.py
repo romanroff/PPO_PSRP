@@ -30,7 +30,7 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
 
         self.observation_space = spaces.Dict({
             'normalized_remaining_time': spaces.Box(low=0, high=1, shape=(self.k_vehicles,), dtype=np.float32),
-            'node_features': spaces.Box(low=0, high=1, shape=(self.num_stations, 5 * self.products_count + self.products_count * self.k_vehicles + self.products_count ), dtype=np.float32),
+            'node_features': spaces.Box(low=0, high=1, shape=(self.num_stations, 4 * self.products_count + self.products_count * self.k_vehicles + self.products_count ), dtype=np.float32),
             'edge_index': spaces.Box(low=0, high=self.num_nodes - 1, shape=(2, self.edge_indices.shape[1]), dtype=np.int64),
             'edge_attr': spaces.Box(low=0, high=float('inf'), shape=(self.edge_indices.shape[1], self.edge_features.shape[1]), dtype=np.float32),
             'global_features': spaces.Box(low=0, high=float('inf'), shape=(3,), dtype=np.float32),
@@ -47,15 +47,12 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
         delivery_percents = actions[2:-1].float() * 25.0
         end_day_flag = actions[-1].item()
 
-        current_vehicle_location = self.vehicle_locations[vehicle]
         self.action_history.append((vehicle, station_idx, delivery_percents, end_day_flag))
-        current_vehicle_location = current_vehicle_location.unsqueeze(0)
-        traversed_edges = torch.cat([current_vehicle_location, torch.tensor([station_idx], device=self.device)], dim=0).long()
 
         self.render_steps.append({
             'type': 'move',
             'vehicle': vehicle,
-            'start': self.vehicle_locations[vehicle].item(),
+            'start': self.vehicle_updated_locations[vehicle].item(),
             'end': station_idx,
             'delivery_percents': delivery_percents,
             'end_day_flag': 0
@@ -73,7 +70,7 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
         self._handle_depot_visits(torch.tensor([station_idx]), vehicle)
 
         # Обрабатываем конец дня
-        self._handle_day_end(end_day_flag=end_day_flag)
+        self._handle_day_end(end_day_flag=end_day_flag, vehicle=vehicle)
 
         if end_day_flag == 1 and station_idx != self.depots.item():
             self.render_steps.append({
@@ -86,8 +83,8 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
             })
 
         done = self.is_done()
-        self.calc_step_kpis(torch.tensor([station_idx]), traversed_edges, vehicle)
-        total_reward = self.get_reward(traversed_edges)
+        self.calc_step_kpis(torch.tensor([station_idx]), vehicle)
+        total_reward = self.get_reward(vehicle)
 
         return self.get_state(station_idx), total_reward, done, done, self.get_kpis()
 

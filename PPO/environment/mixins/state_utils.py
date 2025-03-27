@@ -44,11 +44,11 @@ class StateUtils:
         self.empty_load = 0
         self.restricted_station = 0
         self.revisit = 0
+        self.depot_revisit = 0
         self.dry_runs_penalty = 0
         self.closeness = 0
         # Добавляем переменные для визуальной дискретизации
         self.render_steps = []  # Список визуальных шагов
-        self.render_vehicle_locations = None  # Временные локации машин для рендера
 
     def _initialize_tensors(self):
         self.positions = self.positions.to(self.device)
@@ -75,15 +75,16 @@ class StateUtils:
         self.temp_load = self.vehicle_compartments.clone()
         self.demands = self.daily_demands[self.cur_day].squeeze()
         
-        self.vehicle_locations = torch.full((self.k_vehicles,), self.depots.item(), dtype=torch.long, device=self.device)
-        # Инициализируем render_vehicle_locations
-        self.render_vehicle_locations = self.vehicle_locations.clone()
-        
+        self.vehicle_updated_locations = torch.full((self.k_vehicles,), self.depots.item(), dtype=torch.long, device=self.device)
+        self.vehicle_prev_locations = torch.full((self.k_vehicles,), self.depots.item(), dtype=torch.long, device=self.device)
+        self.vehicles_updated_day_end = torch.full((self.k_vehicles,), False, dtype=torch.bool, device=self.device)
+        self.vehicles_prev_day_end = torch.full((self.k_vehicles,), False, dtype=torch.bool, device=self.device)
+
         self.mock_edge_matrix()
         self.update_edges(0)
 
     def _calculate_initial_state(self):
-        self.actions_list = [torch.tensor([0], device=self.device)]
+        self.station_list = [torch.tensor([0], device=self.device)]
         self.avarage_stocks = torch.zeros(self.planning_horizon, device=self.device)
         self.dry_runs_dict = torch.zeros(self.planning_horizon, device=self.device)
         self.actions_daily = torch.zeros(1, device=self.device)

@@ -60,7 +60,7 @@ else:
     },
         # learning_rate=lr_schedule,
         # clip_range=clip_range_schedule,
-        n_epochs=15,
+        n_epochs=10,
         batch_size=32,
         ent_coef=0.01,  
         learning_rate=3e-5,

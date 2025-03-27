@@ -19,25 +19,41 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
         global_input_dim = observation_space['global_features'].shape[0]
         edge_attr_dim = observation_space['edge_attr'].shape[1]
 
-        # GAT с двумя слоями
+        # GAT с четырьмя слоями
         self.gat = nn.Sequential(
-        TransformerConv(
-            in_channels=node_base_dim,
-            out_channels=embedding_size,
-            heads=8,
-            edge_dim=edge_attr_dim,
-            # dropout=0.05,
-            beta=True  # Остаточные связи
-        ),
-        TransformerConv(
-            in_channels=embedding_size * 8,  # Учитываем конкатенацию голов
-            out_channels=embedding_size,
-            heads=1,
-            edge_dim=edge_attr_dim,
-            # dropout=0.05,
-            beta=True
+            TransformerConv(
+                in_channels=node_base_dim,
+                out_channels=embedding_size,
+                heads=8,
+                edge_dim=edge_attr_dim,
+                # dropout=0.05,
+                beta=True  # Остаточные связи
+            ),
+            TransformerConv(
+                in_channels=embedding_size * 8,  # Учитываем heads=8 из первого слоя
+                out_channels=embedding_size,
+                heads=4,
+                edge_dim=edge_attr_dim,
+                # dropout=0.05,
+                beta=True
+            ),
+            TransformerConv(
+                in_channels=embedding_size * 4,  # Учитываем heads=4 из второго слоя
+                out_channels=embedding_size,
+                heads=2,
+                edge_dim=edge_attr_dim,
+                # dropout=0.05,
+                beta=True
+            ),
+            TransformerConv(
+                in_channels=embedding_size * 2,  # Учитываем heads=2 из третьего слоя
+                out_channels=embedding_size,
+                heads=1,
+                edge_dim=edge_attr_dim,
+                # dropout=0.05,
+                beta=True
+            )
         )
-    )
 
         # Линейный слой для глобальных признаков
         self.global_linear = nn.Sequential(
@@ -78,10 +94,11 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
     def forward(self, observations):
         node_features, edge_index, edge_attr, batch = self.convert_to_pyg_format(observations)
 
-        # В forward
-        x = self.gat[0](node_features, edge_index, edge_attr)
-        x = F.tanh(x)  # Ваша активация
-        x = self.gat[1](x, edge_index, edge_attr)
+        # Проходим через все слои GAT
+        x = node_features
+        for layer in self.gat:
+            x = layer(x, edge_index, edge_attr)
+            x = F.tanh(x)  # Применяем активацию после каждого слоя
         
         # Комбинированный пулинг
         x_add = global_add_pool(x, batch)
@@ -110,11 +127,10 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
         edge_index = observations['edge_index'].to(torch.int64)  # [batch_size, 2, num_edges] или [2, num_edges]
         edge_attr = observations['edge_attr']  # [batch_size, num_edges, edge_attr_dim] или [num_edges, edge_attr_dim]
 
-
         depot_features = torch.zeros(batch_size, 1, node_features.shape[2], device=node_features.device)
         node_features = torch.cat([depot_features, node_features], dim=1)  # [batch_size, num_nodes, node_base_dim]
 
-                # Добавляем индикаторы машин
+        # Добавляем индикаторы машин
         vehicle_locations = observations['vehicle_locations']  # [batch_size, k_vehicles]
         vehicle_indicators = torch.zeros(batch_size, self.num_nodes, self.k_vehicles, device=node_features.device)
         for b in range(batch_size):
