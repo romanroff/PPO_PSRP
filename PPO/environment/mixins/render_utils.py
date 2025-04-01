@@ -178,7 +178,7 @@ class RenderUtils:
             f"\nRewards & Penalties:\n"
             f"Distance: {kpis['distance_rewards']:.2f}\n"
             f"Capacity: {kpis['capacity_rewards']:.2f}\n"
-            f"Dry Runs: {kpis['dry_runs_penalties']:.2f}\n"
+            f"Dry Runs: {kpis['dry_runs_penalty']:.2f}\n"
             f"Time End: {kpis['time_end_penalties']:.2f}\n"
             f"Empty Load: {kpis['empty_load_penalties']:.2f}\n"
             f"Restricted: {kpis['restricted_station_penalties']:.2f}\n"

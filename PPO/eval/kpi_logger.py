@@ -38,7 +38,7 @@ def log_kpi_metrics(df, capacities_list, args):
 
     for i in range(2, 7):
         axes[2].plot(df.iloc[:, i], label=df.columns[i].replace("_penalties", ""))
-    # axes[2].plot(df['dry_runs_penalties'], label='dry_runs')  # Добавлено
+    # axes[2].plot(df['dry_runs_penalty'], label='dry_runs')  # Добавлено
     axes[2].set_title("Penalties", fontsize=title_fontsize)
     axes[2].grid()
     axes[2].tick_params(axis='x', labelsize=tick_fontsize)

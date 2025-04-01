@@ -14,14 +14,15 @@ KEYS_TO_LOG = [
 
 REWARDS_TO_LOG = [   
     'distance_rewards',
-    'dry_runs_penalties',
+    'dry_runs_penalty',
     'time_end_penalties',
     'empty_load_penalties',
     # 'restricted_station_penalties',
     'revisit_1',
     'revisit_2',
     'revisit_3',
-    'revisit_4',]
+    'revisit_4',
+    'overfill_penalty']
 
 PARAMETERS_DICT = {
     'num_nodes': 5,
@@ -38,8 +39,3 @@ PARAMETERS_DICT = {
     'days_to_fill': 3,
     'working_time': float(18 * 60 * 60 - 9 * 60 * 60),
 }
-
-policy_kwargs = dict(activation_fn=torch.nn.ReLU,
-                     features_extractor_class=GATFeatureExtractor,
-                     features_extractor_kwargs=dict(embedding_size=64),
-                     net_arch=dict(pi=[64,64,64], vf=[64,64,64]))

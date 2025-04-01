@@ -48,6 +48,7 @@ class StateUtils:
         self.revisit_2 = 0
         self.revisit_3 = 0
         self.revisit_4 = 0
+        self.overfill_penalty = 0
         self.depot_revisit = 0
         self.dry_runs_penalty = 0
         self.closeness = 0

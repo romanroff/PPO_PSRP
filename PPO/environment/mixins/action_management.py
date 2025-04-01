@@ -13,6 +13,7 @@ class ActionManagement:
         self.update_edges(self.vehicle)
 
     def _update_load(self):
+        self.overfill_penalty = 0
         self.delivery = torch.zeros(self.products_count, device=self.device)
         if self.station_idx != self.depots.item():
             station_idx_for_capacities = self.station_idx - 1
@@ -22,6 +23,8 @@ class ActionManagement:
             max_possible_delivery = torch.min(full_fill_up[station_idx_for_capacities, :].squeeze(0), selected_temp_load)
             # Вычисляем выбранную доставку на основе процентов
             selected_delivery = self.delivery_percents * selected_temp_load
+            if torch.any(selected_delivery > max_possible_delivery):
+                self.overfill_penalty = -1
             # Выбираем минимальную возможную доставку
             self.delivery = torch.min(selected_delivery, max_possible_delivery)
             # Обновляем init_capacities для всех продуктов
@@ -51,23 +54,24 @@ class ActionManagement:
         self.revisit_2 = 0
         self.revisit_3 = 0
         self.revisit_4 = 0
-        
+
         if prev_location == upd_location and not self.prev_day_end and not self.updated_day_end:
-            self.revisit_1 = -5
+            self.revisit_1 = -6
         if prev_location == upd_location and not self.prev_day_end and self.updated_day_end:
-            self.revisit_2 = -5
+            self.revisit_2 = -6
         if prev_location != self.depots and upd_location == self.depots and self.prev_day_end:
-            self.revisit_3 = -5
+            self.revisit_3 = -6
         if prev_location == self.depots and upd_location == self.depots and self.prev_day_end and not self.updated_day_end:
-            self.revisit_4 = -5
+            self.revisit_4 = -6
 
         # Наказание за поездку
-        distance = self.get_distance(prev_location, upd_location).item()
+        max_distance = self.weight_matrixes.max().item()
+        distance = (self.get_distance(prev_location, upd_location).item() / max_distance)
 
         if self.day_end:
 
             for veh in self.vehicle_updated_locations:
-                distance += self.get_distance(veh, self.depots).item()
+                distance += (self.get_distance(veh, self.depots).item() / max_distance)
 
             self.vehicles = torch.ones(1, dtype=torch.long, device=self.device) * self.k_vehicles * self.max_trips
             self.demands = self.daily_demands[self.cur_day].squeeze(0)
@@ -81,10 +85,10 @@ class ActionManagement:
             self.vehicle_prev_locations = prev_vehicle_location
             self.vehicle_updated_locations = torch.full((self.k_vehicles,), self.depots.item(), dtype=torch.long, device=self.device)
 
-        max_distance = self.weight_matrixes.max().item()
+
                     
-        normalized_distance = distance / max_distance
-        self.dist = -1 * normalized_distance
+        normalized_distance = distance
+        self.dist = -1 * normalized_distance 
 
 
     def is_done(self):

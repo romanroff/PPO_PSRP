@@ -30,10 +30,13 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
 
         self.observation_space = spaces.Dict({
             'normalized_remaining_time': spaces.Box(low=0, high=1, shape=(self.k_vehicles,), dtype=np.float32),
-            'node_features': spaces.Box(low=0, high=1, shape=(self.num_nodes, 5 * self.products_count + self.products_count * self.k_vehicles + self.products_count + self.k_vehicles), dtype=np.float32),
+            'node_features': spaces.Box(low=0, high=1, shape=(self.num_nodes, 8 * self.products_count + self.products_count * self.k_vehicles + self.products_count + self.k_vehicles), dtype=np.float32),
             'edge_index': spaces.Box(low=0, high= self.num_stations, shape=(2, self.edge_indices.shape[1]), dtype=np.int64),
             'edge_attr': spaces.Box(low=0, high=float('inf'), shape=(self.edge_indices.shape[1], self.edge_features.shape[1]), dtype=np.float32),
             'global_features': spaces.Box(low=0, high=float('inf'), shape=(3,), dtype=np.float32),
+            'future_stock_levels': spaces.Box(low=0, high=1, 
+                                            shape=(self.num_nodes, self.products_count, 3), 
+                                            dtype=np.float32)
         })
 
     def step(self, actions: torch.Tensor) -> Tuple[torch.Tensor, dict, bool]:
@@ -91,3 +94,36 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
     def render(self, mode='rgb_array', **kwargs):
         probs = kwargs.get('probs', None)
         return self.render_utils.render(self, probs=probs, mode=mode)
+
+    def action_masks(self):
+        # Маска для транспортных средств: True, если осталось время
+        vehicles_mask = (self.cur_remaining_time > 0).cpu().numpy().astype(bool)
+        
+        # Базовая маска для станций (только станции, без депо)
+        active_vehicles = np.where(vehicles_mask)[0]
+        restriction_matrix = self.restriction_matrix.cpu().numpy()
+        if len(active_vehicles) > 0:
+            restriction_matrix_active = restriction_matrix[active_vehicles]
+            stations_allowed = np.any(restriction_matrix_active == 0, axis=0).astype(bool)
+        else:
+            stations_allowed = np.zeros(self.num_nodes, dtype=bool)
+        
+        full_stations = torch.all(self.init_capacities >= self.max_capacities, dim=1).cpu().numpy()
+        
+        depot_mask = np.array([True])  # Для депо
+        full_stations = np.concatenate([depot_mask, full_stations])
+        stations_mask = stations_allowed & ~full_stations  
+        
+        delivery_percent_masks = [np.array([True] * 5) for _ in range(self.products_count)]
+        
+        end_day_mask = np.array([True, True])
+        
+        # Объединяем все маски в одну сплющенную маску для MultiDiscrete
+        flattened_mask = np.concatenate([
+            vehicles_mask,
+            stations_mask,
+            *[mask for mask in delivery_percent_masks],
+            end_day_mask
+        ])
+        
+        return flattened_mask
