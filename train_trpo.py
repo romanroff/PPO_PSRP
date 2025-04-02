@@ -76,7 +76,7 @@ eval_callback = EvalCallback(
     eval_env,
     best_model_save_path=f"models/{exp_name}/",
     log_path=f"models/{exp_name}/",
-    eval_freq=100,
+        eval_freq=1000,
     n_eval_episodes=1,
     deterministic=True,
     render=False,

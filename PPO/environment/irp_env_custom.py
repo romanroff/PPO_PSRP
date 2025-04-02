@@ -24,19 +24,16 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
         self.action_space = spaces.MultiDiscrete([
             self.k_vehicles,
             self.num_nodes,
-            *[5] * self.products_count,
+            *[11] * self.products_count,
             2
         ])
 
         self.observation_space = spaces.Dict({
             'normalized_remaining_time': spaces.Box(low=0, high=1, shape=(self.k_vehicles,), dtype=np.float32),
-            'node_features': spaces.Box(low=0, high=1, shape=(self.num_nodes, 9 * self.products_count + self.k_vehicles * self.products_count + 2 * self.k_vehicles + 2), dtype=np.float32),
+            'node_features': spaces.Box(low=0, high=1, shape=(self.num_nodes, 9 * self.products_count + self.k_vehicles * self.products_count + 2 * self.k_vehicles + 2 + self.products_count * 3 * 2), dtype=np.float32),
             'edge_index': spaces.Box(low=0, high= self.num_stations, shape=(2, self.edge_indices.shape[1]), dtype=np.int64),
             'edge_attr': spaces.Box(low=0, high=float('inf'), shape=(self.edge_indices.shape[1], self.edge_features.shape[1]), dtype=np.float32),
             'global_features': spaces.Box(low=0, high=float('inf'), shape=(3,), dtype=np.float32),
-            'future_stock_and_demand': spaces.Box(low=0, high=1, 
-                                            shape=(self.num_nodes, self.products_count, 3, 2), 
-                                            dtype=np.float32)
         })
 
     def step(self, actions: torch.Tensor) -> Tuple[torch.Tensor, dict, bool]:
@@ -46,7 +43,7 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
 
         self.vehicle = actions[0]
         self.station_idx = actions[1]
-        self.delivery_percents = actions[2:-1].float() * 25.0 / 100
+        self.delivery_percents = actions[2:-1].float() * 10.0 / 100
         self.end_day_flag = actions[-1] == 1
 
         self.action_history.append((self.vehicle, self.station_idx, self.delivery_percents, self.end_day_flag))

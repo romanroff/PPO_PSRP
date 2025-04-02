@@ -9,7 +9,7 @@ from torch_geometric.nn import GAT, TransformerConv, SAGPooling
 class GATFeatureExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space: spaces.Dict, embedding_size=64):
         super(GATFeatureExtractor, self).__init__(observation_space, features_dim=embedding_size)
-        self.rnn_size = 16
+
 
         self.k_vehicles = observation_space['normalized_remaining_time'].shape[0]
         self.num_nodes = observation_space['node_features'].shape[0]
@@ -19,16 +19,9 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
         global_input_dim = observation_space['global_features'].shape[0]
         edge_attr_dim = observation_space['edge_attr'].shape[1]
 
-        self.rnn = nn.GRU(
-            input_size=self.products_count*2,
-            hidden_size=self.rnn_size,
-            num_layers=1,
-            batch_first=True
-        )
-
         self.gat = nn.Sequential(
             TransformerConv(
-                in_channels=node_base_dim + 3*self.rnn_size,
+                in_channels=node_base_dim,
                 out_channels=embedding_size,
                 heads=8,
                 edge_dim=edge_attr_dim,
@@ -73,16 +66,7 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
 
     def forward(self, observations):
         node_features, edge_index, edge_attr, batch = self.convert_to_pyg_format(observations)
-        
-        # В GATFeatureExtractor.forward()
-        future_stock_and_demand = observations['future_stock_and_demand'].clone().detach().to(dtype=torch.float32)
-        batch_size = future_stock_and_demand.shape[0]
-        input_features = future_stock_and_demand.view(batch_size * self.num_nodes, 3, self.products_count * 2)
-        rnn_out, _ = self.rnn(input_features)  # или future_stock для совместимости
-        rnn_flat = rnn_out.reshape(batch_size * self.num_nodes, 3 * self.rnn_size)   # (batch_size * num_nodes, 3 * embedding_size)
-        
-        node_features = torch.cat([node_features, rnn_flat], dim=-1)
-
+    
         x = node_features
         for layer in self.gat[:-1]:
             x = layer(x, edge_index, edge_attr)
@@ -91,7 +75,6 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
 
         edge_weight = edge_attr.squeeze()  # Преобразуем в edge_weight
         x, _,_,_,_,_ = self.sag_pool(x, edge_index, edge_weight, batch)
-        x = x.view(batch_size, -1)  # Убедимся, что размерность соответствует ожидаемой
 
         global_hidden = self.global_linear(observations['global_features'])
         # time_hidden = self.time_linear(observations['normalized_remaining_time'])

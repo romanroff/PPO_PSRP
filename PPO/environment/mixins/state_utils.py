@@ -16,6 +16,9 @@ class StateUtils:
             self.service_times, self.min_capacities, self.max_capacities, \
             self.init_capacities, self.vehicle_compartments = self.batch
 
+        self.init_capacities = self.init_capacities.clone()
+        self.vehicle_compartments = self.vehicle_compartments.clone()
+
         self.daily_demands = self.daily_demands[:, 1:, :]
         self.min_capacities = self.min_capacities[1:, :]
         self.max_capacities = self.max_capacities[1:, :]

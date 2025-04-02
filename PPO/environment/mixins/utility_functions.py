@@ -44,8 +44,8 @@ class IRPEnvUtilitiesMixin:
         day_end_features[:, 1] = float(self.prev_day_end)    # Previous day end status
         node_features = torch.cat([node_features, day_end_features], dim=-1)
 
-        # Future stock and demand calculation
-        future_stock_and_demand = torch.zeros(self.num_nodes, self.products_count, 3, 2, device=self.device)
+        # Future stock and demand calculation - now part of node features
+        future_stock_and_demand = torch.zeros(self.num_nodes, self.products_count * 3 * 2, device=self.device)
         current_stock = torch.cat([torch.zeros(1, self.products_count, device=self.device), 
                                 self.init_capacities], dim=0)
         depot_demand = torch.zeros(1, self.products_count, device=self.device)
@@ -58,15 +58,21 @@ class IRPEnvUtilitiesMixin:
                 future_stock = current_stock - daily_demand_with_depot
                 future_stock = torch.clamp(future_stock, min=0)
                 
-                future_stock_and_demand[:, :, day, 0] = future_stock / self.max_capacities.max()
-                future_stock_and_demand[:, :, day, 1] = daily_demand_with_depot / self.max_capacities.max()
+                start_idx = day * self.products_count * 2
+                future_stock_and_demand[:, start_idx:start_idx + self.products_count] = future_stock / self.max_capacities.max()
+                future_stock_and_demand[:, start_idx + self.products_count:start_idx + 2 * self.products_count] = daily_demand_with_depot / self.max_capacities.max()
             else:
                 if day > 0:
-                    future_stock_and_demand[:, :, day, 0] = future_stock_and_demand[:, :, day-1, 0]
-                    future_stock_and_demand[:, :, day, 1] = future_stock_and_demand[:, :, day-1, 1]
+                    prev_start_idx = (day-1) * self.products_count * 2
+                    curr_start_idx = day * self.products_count * 2
+                    future_stock_and_demand[:, curr_start_idx:curr_start_idx + 2 * self.products_count] = future_stock_and_demand[:, prev_start_idx:prev_start_idx + 2 * self.products_count]
                 else:
-                    future_stock_and_demand[:, :, day, 0] = current_stock / self.max_capacities.max()
-                    future_stock_and_demand[:, :, day, 1] = torch.zeros_like(current_stock) / self.max_capacities.max()
+                    start_idx = day * self.products_count * 2
+                    future_stock_and_demand[:, start_idx:start_idx + self.products_count] = current_stock / self.max_capacities.max()
+                    future_stock_and_demand[:, start_idx + self.products_count:start_idx + 2 * self.products_count] = torch.zeros_like(current_stock) / self.max_capacities.max()
+
+        # Add future stock and demand to node features
+        node_features = torch.cat([node_features, future_stock_and_demand], dim=-1)
 
         # Global features
         time_for_vehicle = self.working_time
@@ -82,8 +88,7 @@ class IRPEnvUtilitiesMixin:
             'node_features': node_features,
             'edge_index': self.edge_indices,
             'edge_attr': self.edge_features,
-            'global_features': global_features,
-            'future_stock_and_demand': future_stock_and_demand
+            'global_features': global_features
         }
         state_np = self.tensors_to_numpy(state)
         return state_np

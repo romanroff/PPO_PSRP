@@ -1,7 +1,5 @@
 import torch
 
-from PPO.GNN.GNN import GATFeatureExtractor
-
 KEYS_TO_LOG = [
     'total_travel_distance',
     'total_travel_time',
