@@ -42,7 +42,7 @@ class KPITracking:
 
         penalties = self.get_penalty() 
 
-        total_reward = self.dry_runs_penalty + self.dist + penalties + self.overfill_penalty
+        total_reward = self.dry_runs_penalty + self.dist + penalties #+ self.overfill_penalty
         return total_reward
 
     def get_penalty(self):

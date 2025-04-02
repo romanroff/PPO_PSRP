@@ -4,11 +4,12 @@ import torch.nn.functional as F
 from gymnasium import spaces
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch_geometric.data import Batch, Data
-from torch_geometric.nn import GAT, global_add_pool, global_mean_pool, global_max_pool
-from torch_geometric.nn import TransformerConv
+from torch_geometric.nn import GAT, TransformerConv, SAGPooling
+
 class GATFeatureExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space: spaces.Dict, embedding_size=64):
         super(GATFeatureExtractor, self).__init__(observation_space, features_dim=embedding_size)
+        self.rnn_size = 16
 
         self.k_vehicles = observation_space['normalized_remaining_time'].shape[0]
         self.num_nodes = observation_space['node_features'].shape[0]
@@ -18,18 +19,16 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
         global_input_dim = observation_space['global_features'].shape[0]
         edge_attr_dim = observation_space['edge_attr'].shape[1]
 
-        # RNN для обработки временных данных
         self.rnn = nn.GRU(
-            input_size=self.products_count,
-            hidden_size=embedding_size,
+            input_size=self.products_count*2,
+            hidden_size=self.rnn_size,
             num_layers=1,
             batch_first=True
         )
 
-        # GAT с учетом увеличенного размера входных данных
         self.gat = nn.Sequential(
             TransformerConv(
-                in_channels=node_base_dim + embedding_size,  # Добавляем размер RNN выхода
+                in_channels=node_base_dim + 3*self.rnn_size,
                 out_channels=embedding_size,
                 heads=8,
                 edge_dim=edge_attr_dim,
@@ -51,22 +50,23 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
             )
         )
 
+        self.sag_pool = SAGPooling(embedding_size, ratio=1.0)  # Оставляем одну ноду после пуллинга
+
         self.global_linear = nn.Sequential(
             nn.Linear(global_input_dim, embedding_size),
-            nn.LeakyReLU(0.01),
+            nn.LeakyReLU(0.1),
             nn.Linear(embedding_size, embedding_size)
         )
 
-        self.time_linear = nn.Sequential(
-            nn.Linear(self.k_vehicles, embedding_size),
-            nn.LeakyReLU(0.01),
-            nn.Linear(embedding_size, embedding_size)
-        )
+        # self.time_linear = nn.Sequential(
+        #     nn.Linear(self.k_vehicles, embedding_size),
+        #     nn.LeakyReLU(0.1),
+        #     nn.Linear(embedding_size, embedding_size)
+        # )
 
-        # Оставляем размер final_linear как был (5 компонентов)
         self.final_linear = nn.Sequential(
-            nn.Linear(embedding_size * 5, embedding_size),
-            nn.LeakyReLU(0.01),
+            nn.Linear(embedding_size * 2, embedding_size),
+            nn.LeakyReLU(0.1),
             nn.Linear(embedding_size, embedding_size),
             nn.Linear(embedding_size, embedding_size)
         )
@@ -74,35 +74,29 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
     def forward(self, observations):
         node_features, edge_index, edge_attr, batch = self.convert_to_pyg_format(observations)
         
-        # Обработка временных данных через RNN
-        future_stock = torch.tensor(observations['future_stock_levels'], dtype=torch.float32)  # [batch_size, num_nodes, products_count, 3]
-        batch_size = future_stock.shape[0]
-        future_stock = future_stock.view(batch_size * self.num_nodes, 3, self.products_count)  # [batch_size * num_nodes, timesteps, features]
-        rnn_out, _ = self.rnn(future_stock)  # [batch_size * num_nodes, timesteps, embedding_size]
-        rnn_out = rnn_out[:, -1, :]  # Берем последний выход [batch_size * num_nodes, embedding_size]
+        # В GATFeatureExtractor.forward()
+        future_stock_and_demand = observations['future_stock_and_demand'].clone().detach().to(dtype=torch.float32)
+        batch_size = future_stock_and_demand.shape[0]
+        input_features = future_stock_and_demand.view(batch_size * self.num_nodes, 3, self.products_count * 2)
+        rnn_out, _ = self.rnn(input_features)  # или future_stock для совместимости
+        rnn_flat = rnn_out.reshape(batch_size * self.num_nodes, 3 * self.rnn_size)   # (batch_size * num_nodes, 3 * embedding_size)
         
-        # Добавляем RNN признаки к node_features
-        node_features = torch.cat([node_features, rnn_out], dim=-1)  # [batch_size * num_nodes, node_base_dim + embedding_size]
+        node_features = torch.cat([node_features, rnn_flat], dim=-1)
 
-        # Проходим через GAT слои
         x = node_features
-        # Обработка всех слоев кроме последнего
         for layer in self.gat[:-1]:
             x = layer(x, edge_index, edge_attr)
-            x = F.leaky_relu(x,negative_slope=0.01)
-        # Обработка последнего слоя без активации
+            x = F.leaky_relu(x, negative_slope=0.1)
         x = self.gat[-1](x, edge_index, edge_attr)
-        
-        # Комбинированный пулинг
-        x_add = global_add_pool(x, batch)
-        x_mean = global_mean_pool(x, batch)
-        x_max = global_max_pool(x, batch)
-        x = torch.cat([x_add, x_mean, x_max], dim=-1)
+
+        edge_weight = edge_attr.squeeze()  # Преобразуем в edge_weight
+        x, _,_,_,_,_ = self.sag_pool(x, edge_index, edge_weight, batch)
+        x = x.view(batch_size, -1)  # Убедимся, что размерность соответствует ожидаемой
 
         global_hidden = self.global_linear(observations['global_features'])
-        time_hidden = self.time_linear(observations['normalized_remaining_time'])
+        # time_hidden = self.time_linear(observations['normalized_remaining_time'])
 
-        combined = torch.cat([x, global_hidden, time_hidden], dim=-1)
+        combined = torch.cat([x, global_hidden], dim=-1) #time_hidden
         output = self.final_linear(combined)
 
         return output

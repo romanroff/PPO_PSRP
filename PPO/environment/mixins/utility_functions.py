@@ -3,7 +3,7 @@ import torch
 
 class IRPEnvUtilitiesMixin:
     def get_state(self) -> dict:
-        # Существующий код для node_features
+        # Existing code for node_features
         node_features = torch.cat([
             self.max_capacities / self.max_capacities,
             self.min_capacities / self.max_capacities,
@@ -31,25 +31,43 @@ class IRPEnvUtilitiesMixin:
         depot_features = torch.zeros(1, node_features.shape[1], device=node_features.device)
         node_features = torch.cat([depot_features, node_features], dim=0)
 
-        vehicle_indicators = torch.zeros(self.num_nodes, self.k_vehicles, device=node_features.device)
-        for k, loc in enumerate(self.vehicle_updated_locations):
-            vehicle_indicators[int(loc.item()), k] = 1
+        # Modified vehicle_indicators to include both updated and previous locations
+        vehicle_indicators = torch.zeros(self.num_nodes, self.k_vehicles * 2, device=node_features.device)
+        for k, (upd_loc, prev_loc) in enumerate(zip(self.vehicle_updated_locations, self.vehicle_prev_locations)):
+            vehicle_indicators[int(upd_loc.item()), k] = 1  # Current location indicators
+            vehicle_indicators[int(prev_loc.item()), k + self.k_vehicles] = 1  # Previous location indicators
         node_features = torch.cat([node_features, vehicle_indicators], dim=-1)
 
-        # Временные признаки
-        future_stock_levels = torch.zeros(self.num_nodes, self.products_count, 3, device=self.device)
+        # Adding day end information
+        day_end_features = torch.zeros(self.num_nodes, 2, device=node_features.device)
+        day_end_features[:, 0] = float(self.updated_day_end)  # Current day end status
+        day_end_features[:, 1] = float(self.prev_day_end)    # Previous day end status
+        node_features = torch.cat([node_features, day_end_features], dim=-1)
+
+        # Future stock and demand calculation
+        future_stock_and_demand = torch.zeros(self.num_nodes, self.products_count, 3, 2, device=self.device)
         current_stock = torch.cat([torch.zeros(1, self.products_count, device=self.device), 
                                 self.init_capacities], dim=0)
         depot_demand = torch.zeros(1, self.products_count, device=self.device)
+
         for day in range(3):
             if self.cur_day.item() + day < self.planning_horizon:
-                daily_demand_with_depot = torch.cat([depot_demand, 
-                                                self.daily_demands[self.cur_day + day].squeeze(0)], dim=0)
+                current_demand = self.daily_demands[self.cur_day + day].squeeze(0)
+                daily_demand_with_depot = torch.cat([depot_demand, current_demand], dim=0)
+                
                 future_stock = current_stock - daily_demand_with_depot
                 future_stock = torch.clamp(future_stock, min=0)
-                future_stock_levels[:, :, day] = future_stock / self.max_capacities.max()
+                
+                future_stock_and_demand[:, :, day, 0] = future_stock / self.max_capacities.max()
+                future_stock_and_demand[:, :, day, 1] = daily_demand_with_depot / self.max_capacities.max()
             else:
-                future_stock_levels[:, :, day] = future_stock_levels[:, :, day-1] if day > 0 else current_stock / self.max_capacities.max()
+                if day > 0:
+                    future_stock_and_demand[:, :, day, 0] = future_stock_and_demand[:, :, day-1, 0]
+                    future_stock_and_demand[:, :, day, 1] = future_stock_and_demand[:, :, day-1, 1]
+                else:
+                    future_stock_and_demand[:, :, day, 0] = current_stock / self.max_capacities.max()
+                    future_stock_and_demand[:, :, day, 1] = torch.zeros_like(current_stock) / self.max_capacities.max()
+
         # Global features
         time_for_vehicle = self.working_time
         normalized_remaining_time = torch.nan_to_num(self.cur_remaining_time / time_for_vehicle, 0, posinf=0)
@@ -65,7 +83,7 @@ class IRPEnvUtilitiesMixin:
             'edge_index': self.edge_indices,
             'edge_attr': self.edge_features,
             'global_features': global_features,
-            'future_stock_levels': future_stock_levels
+            'future_stock_and_demand': future_stock_and_demand
         }
         state_np = self.tensors_to_numpy(state)
         return state_np

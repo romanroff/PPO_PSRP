@@ -1,7 +1,6 @@
 import argparse
 import pickle
 import gymnasium
-from sb3_contrib import RecurrentPPO
 from sb3_contrib import TRPO
 import datetime
 
@@ -16,6 +15,7 @@ from PPO.GNN.GNN_Gat import GATFeatureExtractor
 from stable_baselines3.common.utils import Schedule
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
+# Парсинг аргументов
 args = argparse.ArgumentParser()
 args.add_argument("--n", type=int, required=True)
 args.add_argument("--n_steps", type=int, required=True)
@@ -24,52 +24,54 @@ args.add_argument("--timesteps", type=int, required=True)
 args.add_argument("--pre_train", type=bool, default=False)
 args = args.parse_args()
 
+# Обновление параметров
 PARAMETERS_DICT['num_nodes'] = args.n
 PARAMETERS_DICT['k_vehicles'] = args.veh
 
+# Загрузка данных
 pkl_path = f"data_pkl/nodes-{args.n}_steps-{500}_veh-{args.veh}.pkl"
 with open(pkl_path, "rb") as f:
     model_for_nn = pickle.load(f)
 
+# Создание среды
 env = IRPEnv_Custom(model_for_nn, PARAMETERS_DICT)
 
 if args.pre_train:
-    model = RecurrentPPO.load(f"models/GNN_nsteps-{args.n_steps}_nodes-{args.n}_veh-{args.veh}/best_model.zip", env=env)
+    # Загрузка предобученной модели TRPO
+    model = TRPO.load(f"models/trpo_GNN_nsteps-{args.n_steps}_nodes-{args.n}_veh-{args.veh}/best_model.zip", env=env)
 else:
-    model = RecurrentPPO(
-        policy="MultiInputLstmPolicy",
+    # Инициализация TRPO
+    model = TRPO(
+        policy="MultiInputPolicy",  # TRPO не поддерживает LSTM напрямую, используем MultiInputPolicy
         env=env,
         policy_kwargs={
-        "features_extractor_class": GATFeatureExtractor,
-        "features_extractor_kwargs": {"embedding_size": 256},
-        "net_arch": [256,256,256],
-        "lstm_hidden_size": 256,
-        "n_lstm_layers": 1
-    },
-        n_steps = args.n_steps, 
-        n_epochs=10,
-        batch_size=32,
-        # ent_coef=0.01,  
-        learning_rate=3e-4,
-        clip_range=0.3,
-        gae_lambda=0.95,
-        gamma=0.999,
-        vf_coef=0.5,
-        normalize_advantage=True,
+            "features_extractor_class": GATFeatureExtractor,
+            "features_extractor_kwargs": {"embedding_size": 256},
+            "net_arch": [256, 256, 256],  # Оставляем архитектуру сети
+        },
+        n_steps=args.n_steps,  # Количество шагов для сбора данных
+        learning_rate=3e-4,    # Скорость обучения
+        batch_size=32,         # Размер батча
+        gamma=0.999,           # Дисконт-фактор
+        gae_lambda=0.95,       # GAE-лямбда
+        cg_damping=0.1,        # Дэмпинг для conjugate gradient (специфично для TRPO)
+        cg_max_steps=15,       # Максимальное число итераций conjugate gradient
         device='cuda',
-        tensorboard_log="ppo_tensorboard/",
+        tensorboard_log="ppo_tensorboard/",  # Логирование в TensorBoard
     )
 
-
+# Коллбэки для логирования
 log_callback = InfoLoggerCallback(KEYS_TO_LOG)
 rewards_callback = RewardsCallback(REWARDS_TO_LOG)
 gradient_callback = TensorboardGradientCallback()
 
+# Среда для оценки
 eval_env = IRPEnv_Custom(model_for_nn, PARAMETERS_DICT)
 eval_env = gymnasium.wrappers.TimeLimit(eval_env, max_episode_steps=50)
 eval_env = Monitor(eval_env, allow_early_resets=True)
 
-exp_name = f'GNN_nsteps-{args.n_steps}_nodes-{args.n}_veh-{args.veh}'
+# Название эксперимента
+exp_name = f'trpo_GNN_nsteps-{args.n_steps}_nodes-{args.n}_veh-{args.veh}'
 eval_callback = EvalCallback(
     eval_env,
     best_model_save_path=f"models/{exp_name}/",
@@ -80,6 +82,7 @@ eval_callback = EvalCallback(
     render=False,
 )
 
+# Обучение модели
 model.learn(
     total_timesteps=args.timesteps,
     progress_bar=True,
