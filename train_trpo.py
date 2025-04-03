@@ -46,12 +46,12 @@ else:
         env=env,
         policy_kwargs={
             "features_extractor_class": GATFeatureExtractor,
-            "features_extractor_kwargs": {"embedding_size": 256},
-            "net_arch": [256, 256, 256],  # Оставляем архитектуру сети
+            "features_extractor_kwargs": {"embedding_size": 128},
+            "net_arch": [128, 128, 128],  # Оставляем архитектуру сети
         },
         n_steps=args.n_steps,  # Количество шагов для сбора данных
         learning_rate=3e-4,    # Скорость обучения
-        batch_size=32,         # Размер батча
+        batch_size=64,         # Размер батча
         gamma=0.999,           # Дисконт-фактор
         gae_lambda=0.95,       # GAE-лямбда
         cg_damping=0.1,        # Дэмпинг для conjugate gradient (специфично для TRPO)

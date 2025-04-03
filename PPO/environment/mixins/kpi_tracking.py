@@ -38,7 +38,7 @@ class KPITracking:
             dry_runs_mask = self.init_capacities < self.min_capacities
             dry_stations_mask = torch.any(dry_runs_mask, dim=1)
             num_dry_stations = dry_stations_mask.sum().item()
-            self.dry_runs_penalty = -5 * num_dry_stations
+            self.dry_runs_penalty = -4 * num_dry_stations
 
         penalties = self.get_penalty() 
 
