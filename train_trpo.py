@@ -42,12 +42,12 @@ if args.pre_train:
 else:
     # Инициализация TRPO
     model = TRPO(
-        policy="MultiInputPolicy",  # TRPO не поддерживает LSTM напрямую, используем MultiInputPolicy
+        policy="MultiInputPolicy",  
         env=env,
         policy_kwargs={
             "features_extractor_class": GATFeatureExtractor,
             "features_extractor_kwargs": {"embedding_size": 128},
-            "net_arch": [128, 128, 128],  # Оставляем архитектуру сети
+            "net_arch": [512, 1025, 2048],  # Оставляем архитектуру сети
         },
         n_steps=args.n_steps,  # Количество шагов для сбора данных
         learning_rate=3e-4,    # Скорость обучения

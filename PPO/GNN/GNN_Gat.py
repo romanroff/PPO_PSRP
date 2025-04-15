@@ -10,7 +10,6 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space: spaces.Dict, embedding_size=64):
         super(GATFeatureExtractor, self).__init__(observation_space, features_dim=embedding_size)
 
-
         self.k_vehicles = observation_space['normalized_remaining_time'].shape[0]
         self.num_nodes = observation_space['node_features'].shape[0]
         self.products_count = 2
@@ -25,6 +24,7 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
                 out_channels=embedding_size,
                 heads=8,
                 edge_dim=edge_attr_dim,
+
                 beta=True
             ),
             TransformerConv(
@@ -48,18 +48,21 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
         self.global_linear = nn.Sequential(
             nn.Linear(global_input_dim, embedding_size),
             nn.LeakyReLU(0.1),
+            # nn.Dropout(0.1),
             nn.Linear(embedding_size, embedding_size)
         )
 
-        # self.time_linear = nn.Sequential(
-        #     nn.Linear(self.k_vehicles, embedding_size),
-        #     nn.LeakyReLU(0.1),
-        #     nn.Linear(embedding_size, embedding_size)
-        # )
+        self.time_linear = nn.Sequential(
+            nn.Linear(self.k_vehicles, embedding_size),
+            nn.LeakyReLU(0.1),
+            # nn.Dropout(0.1),
+            nn.Linear(embedding_size, embedding_size)
+        )
 
         self.final_linear = nn.Sequential(
-            nn.Linear(embedding_size * 2, embedding_size),
+            nn.Linear(embedding_size * 3, embedding_size),
             nn.LeakyReLU(0.1),
+            # nn.Dropout(0.1),
             nn.Linear(embedding_size, embedding_size),
             nn.Linear(embedding_size, embedding_size)
         )
@@ -77,9 +80,9 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
         x, _,_,_,_,_ = self.sag_pool(x, edge_index, edge_weight, batch)
 
         global_hidden = self.global_linear(observations['global_features'])
-        # time_hidden = self.time_linear(observations['normalized_remaining_time'])
+        time_hidden = self.time_linear(observations['normalized_remaining_time'])
 
-        combined = torch.cat([x, global_hidden], dim=-1) #time_hidden
+        combined = torch.cat([x, global_hidden, time_hidden], dim=-1)
         output = self.final_linear(combined)
 
         return output

@@ -5,13 +5,13 @@ class IRPEnvUtilitiesMixin:
     def get_state(self) -> dict:
         # Existing code for node_features
         node_features = torch.cat([
-            self.max_capacities / self.max_capacities,
+            # self.max_capacities / self.max_capacities,
             self.min_capacities / self.max_capacities,
             self.demands / self.max_capacities,
             self.init_capacities / self.max_capacities, 
             (self.init_capacities - self.min_capacities) / self.max_capacities, 
             (self.init_capacities < self.min_capacities).float(),
-            (self.init_capacities >= self.max_capacities).float(),
+            # (self.init_capacities >= self.max_capacities).float(),
         ], dim=-1).float()
 
         temp_load_all_vehicles = self.temp_load.expand(self.num_stations, self.k_vehicles, self.products_count)

@@ -38,7 +38,7 @@ class KPITracking:
             dry_runs_mask = self.init_capacities < self.min_capacities
             dry_stations_mask = torch.any(dry_runs_mask, dim=1)
             num_dry_stations = dry_stations_mask.sum().item()
-            self.dry_runs_penalty = -4 * num_dry_stations
+            self.dry_runs_penalty = -3 * num_dry_stations
 
         penalties = self.get_penalty() 
 
@@ -53,10 +53,10 @@ class KPITracking:
 
         # Штраф за превышение времени
         if self.cur_remaining_time[self.vehicle].item() <= 0:
-            self.time_end = -6
+            self.time_end = -4
         # Штраф за пустую загрузку
         elif torch.all(self.temp_load[self.vehicle] == 0) and torch.all(self.delivery == 0):
-            self.empty_load = -6
+            self.empty_load = -4
         # Штраф за ограниченную станцию
         elif self.restriction_matrix[self.vehicle, int(self.station_idx)] == 1:
             self.restricted_station = -1

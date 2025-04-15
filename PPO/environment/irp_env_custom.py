@@ -30,7 +30,7 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
 
         self.observation_space = spaces.Dict({
             'normalized_remaining_time': spaces.Box(low=0, high=1, shape=(self.k_vehicles,), dtype=np.float32),
-            'node_features': spaces.Box(low=0, high=1, shape=(self.num_nodes, 9 * self.products_count + self.k_vehicles * self.products_count + 2 * self.k_vehicles + 2 + self.products_count * 3 * 2), dtype=np.float32),
+            'node_features': spaces.Box(low=0, high=1, shape=(self.num_nodes, 7 * self.products_count + self.k_vehicles * self.products_count + 2 * self.k_vehicles + 2 + self.products_count * 3 * 2), dtype=np.float32),
             'edge_index': spaces.Box(low=0, high= self.num_stations, shape=(2, self.edge_indices.shape[1]), dtype=np.int64),
             'edge_attr': spaces.Box(low=0, high=float('inf'), shape=(self.edge_indices.shape[1], self.edge_features.shape[1]), dtype=np.float32),
             'global_features': spaces.Box(low=0, high=float('inf'), shape=(3,), dtype=np.float32),
