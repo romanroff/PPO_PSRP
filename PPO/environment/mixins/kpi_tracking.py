@@ -32,17 +32,53 @@ class KPITracking:
         self.days_completed += (self.cur_day == self.planning_horizon - 1).float()
     
     def get_reward(self):
+        self.delivery_reward = 0
+        self.all_routes = 0
+        # Обновляем маршрут
+        if self.station_idx != self.depots.item() and self.delivery.sum() > 0:
+            self.current_route[self.vehicle.item()].append(self.station_idx.item())
+            delivery_normalized = self.delivery / self.vehicle_compartments[self.vehicle] / self.products_count
+            self.delivery_reward = delivery_normalized.sum().item() * 0.1
+
+
+        route_data = self.current_route[self.vehicle.item()]
+        num_stations_visited = len(set(route_data))
+        if num_stations_visited > 1:
+            self.route_reward[self.vehicle] = min(num_stations_visited*0.1, 0.3)
+
+        if self.day_end:
+            for v in range(self.k_vehicles):
+                route_data = self.current_route[v]
+                num_stations_visited = len(set(route_data))
+                if num_stations_visited > 1:
+                    self.all_routes += min(num_stations_visited*0.1, 0.3)
+                    self.route_reward[v] = 0
+                self.current_route[v] = []
+
 
         self.dry_runs_penalty = 0
         if self.day_end:
             dry_runs_mask = self.init_capacities < self.min_capacities
             dry_stations_mask = torch.any(dry_runs_mask, dim=1)
             num_dry_stations = dry_stations_mask.sum().item()
-            self.dry_runs_penalty = -3 * num_dry_stations
+            self.dry_runs_penalty = -4 * num_dry_stations
 
         penalties = self.get_penalty() 
+        # print(self.dry_runs_penalty)
+        # print(self.dist)
+        # print(self.route_reward[self.vehicle].item())
+        # print(self.delivery_reward)
+        # print(self.all_routes)
 
-        total_reward = self.dry_runs_penalty + self.dist + penalties #+ self.overfill_penalty
+        total_reward = self.dry_runs_penalty + self.dist + penalties# + self.route_reward[self.vehicle].item()  + self.all_routes
+        # +\
+        # self.route_reward[self.vehicle].item()  + self.all_routes  #+ self.delivery_reward
+
+        if self.station_idx == self.depots.item() or self.day_end:
+            self.route_reward[self.vehicle] = 0.0
+            self.current_route[self.vehicle.item()] = []
+
+
         return total_reward
 
     def get_penalty(self):

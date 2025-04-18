@@ -121,7 +121,10 @@ class IRPEnvUtilitiesMixin:
             'revisit_2' : self.revisit_2,
             'revisit_2' : self.revisit_3,
             'revisit_3' : self.revisit_4,
-            'overfill_penalty': self.overfill_penalty
+            'overfill_penalty': self.overfill_penalty,
+            'route_reward':self.route_reward.sum().item(),
+            'all_routes':self.all_routes,
+            'delivery_reward':self.delivery_reward
         }
         average_routes = self.average_routes(self.station_list)
         kpis['average_stops_per_trip'] /= average_routes + 1e-6

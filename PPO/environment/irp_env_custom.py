@@ -43,7 +43,7 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
 
         self.vehicle = actions[0]
         self.station_idx = actions[1]
-        self.delivery_percents = actions[2:-1].float() * 25.0 / 100
+        self.delivery_percents = actions[2:-1].float() * 20.0 / 100
         self.end_day_flag = actions[-1] == 1
 
         self.action_history.append((self.vehicle, self.station_idx, self.delivery_percents, self.end_day_flag))
@@ -62,7 +62,7 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
         self._handle_depot_visits()
         self._handle_day_end()
 
-        if self.end_day_flag and self.station_idx != self.depots.item():
+        if self.day_end and self.station_idx != self.depots.item():
             self.render_steps.append({
                 'type': 'return_to_depot',
                 'vehicle': self.vehicle.item(),

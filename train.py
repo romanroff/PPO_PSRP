@@ -49,7 +49,7 @@ else:
         n_steps = args.n_steps, 
         n_epochs=10,
         batch_size=32,
-        # ent_coef=0.01,  
+        ent_coef=0.05,  
         learning_rate=3e-4,
         clip_range=0.2,
         gae_lambda=0.95,
