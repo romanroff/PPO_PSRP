@@ -75,6 +75,7 @@ class StateUtils:
         self.init_capacities = self.init_capacities.to(self.device)
         self.vehicle_compartments = self.vehicle_compartments.to(self.device)
         self.working_hours = self.working_time / (60 * 60)
+        self.vehicle = 0
 
         self.depots = self.depots.long()
         self.daily_demands = torch.stack([demand for demand in self.daily_demands]).to(self.device)

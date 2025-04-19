@@ -24,7 +24,6 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
                 out_channels=embedding_size,
                 heads=8,
                 edge_dim=edge_attr_dim,
-
                 beta=True
             ),
             TransformerConv(
@@ -43,7 +42,7 @@ class GATFeatureExtractor(BaseFeaturesExtractor):
             )
         )
 
-        self.sag_pool = SAGPooling(embedding_size, ratio=1.0)  # Оставляем одну ноду после пуллинга
+        self.sag_pool = SAGPooling(embedding_size, ratio=1)  # Оставляем одну ноду после пуллинга
 
         self.global_linear = nn.Sequential(
             nn.Linear(global_input_dim, embedding_size),

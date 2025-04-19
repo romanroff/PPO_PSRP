@@ -3,85 +3,15 @@ import torch
 
 class IRPEnvUtilitiesMixin:
     def get_state(self) -> dict:
-        # Existing code for node_features
-        node_features = torch.cat([
-            # self.max_capacities / self.max_capacities,
-            self.min_capacities / self.max_capacities,
-            self.demands / self.max_capacities,
-            self.init_capacities / self.max_capacities, 
-            (self.init_capacities - self.min_capacities) / self.max_capacities, 
-            (self.init_capacities < self.min_capacities).float(),
-            # (self.init_capacities >= self.max_capacities).float(),
-        ], dim=-1).float()
-
-        temp_load_all_vehicles = self.temp_load.expand(self.num_stations, self.k_vehicles, self.products_count)
-        vehicle_loads = torch.nan_to_num(temp_load_all_vehicles / self.max_capacities.unsqueeze(1), 0, posinf=0)
-        temp_load_flattened = vehicle_loads.reshape(self.num_stations, self.k_vehicles*self.products_count)
-        node_features = torch.cat([node_features, temp_load_flattened], dim=1)
-
-        temp_delivery = torch.zeros(self.num_stations, self.products_count)
-        temp_delivery_percent = torch.zeros(self.num_stations, self.products_count)
-        if self.station_idx != self.depots.item():
-            station_idx_for_capacities = self.station_idx - 1
-            temp_delivery[station_idx_for_capacities] = self.delivery / self.max_capacities[station_idx_for_capacities]
-            temp_delivery_percent[station_idx_for_capacities] = self.delivery_percents
-        node_features = torch.cat([node_features, temp_delivery], dim=1)
-        node_features = torch.cat([node_features, temp_delivery_percent], dim=1)
-
-        depot_features = torch.zeros(1, node_features.shape[1], device=node_features.device)
-        node_features = torch.cat([depot_features, node_features], dim=0)
-
-        # Modified vehicle_indicators to include both updated and previous locations
-        vehicle_indicators = torch.zeros(self.num_nodes, self.k_vehicles * 2, device=node_features.device)
-        for k, (upd_loc, prev_loc) in enumerate(zip(self.vehicle_updated_locations, self.vehicle_prev_locations)):
-            vehicle_indicators[int(upd_loc.item()), k] = 1  # Current location indicators
-            vehicle_indicators[int(prev_loc.item()), k + self.k_vehicles] = 1  # Previous location indicators
-        node_features = torch.cat([node_features, vehicle_indicators], dim=-1)
-
-        # Adding day end information
-        day_end_features = torch.zeros(self.num_nodes, 2, device=node_features.device)
-        day_end_features[:, 0] = float(self.updated_day_end)  # Current day end status
-        day_end_features[:, 1] = float(self.prev_day_end)    # Previous day end status
-        node_features = torch.cat([node_features, day_end_features], dim=-1)
-
-        # Future stock and demand calculation - now part of node features
-        future_stock_and_demand = torch.zeros(self.num_nodes, self.products_count * 3 * 2, device=self.device)
-        current_stock = torch.cat([torch.zeros(1, self.products_count, device=self.device), 
-                                self.init_capacities], dim=0)
-        depot_demand = torch.zeros(1, self.products_count, device=self.device)
-
-        for day in range(3):
-            if self.cur_day.item() + day < self.planning_horizon:
-                current_demand = self.daily_demands[self.cur_day + day].squeeze(0)
-                daily_demand_with_depot = torch.cat([depot_demand, current_demand], dim=0)
-                
-                future_stock = current_stock - daily_demand_with_depot
-                future_stock = torch.clamp(future_stock, min=0)
-                
-                start_idx = day * self.products_count * 2
-                future_stock_and_demand[:, start_idx:start_idx + self.products_count] = future_stock / self.max_capacities.max()
-                future_stock_and_demand[:, start_idx + self.products_count:start_idx + 2 * self.products_count] = daily_demand_with_depot / self.max_capacities.max()
-            else:
-                if day > 0:
-                    prev_start_idx = (day-1) * self.products_count * 2
-                    curr_start_idx = day * self.products_count * 2
-                    future_stock_and_demand[:, curr_start_idx:curr_start_idx + 2 * self.products_count] = future_stock_and_demand[:, prev_start_idx:prev_start_idx + 2 * self.products_count]
-                else:
-                    start_idx = day * self.products_count * 2
-                    future_stock_and_demand[:, start_idx:start_idx + self.products_count] = current_stock / self.max_capacities.max()
-                    future_stock_and_demand[:, start_idx + self.products_count:start_idx + 2 * self.products_count] = torch.zeros_like(current_stock) / self.max_capacities.max()
-
-        # Add future stock and demand to node features
-        node_features = torch.cat([node_features, future_stock_and_demand], dim=-1)
-
-        # Global features
-        time_for_vehicle = self.working_time
-        normalized_remaining_time = torch.nan_to_num(self.cur_remaining_time / time_for_vehicle, 0, posinf=0)
-        global_features = torch.cat([
-            self.vehicles.float().unsqueeze(0) / self.k_vehicles * self.max_trips,
-            (self.cur_day / self.planning_horizon).float().unsqueeze(0),
-            (self.vehicles <= 0).float().unsqueeze(0)
-        ]).squeeze().float()
+        node_features = self._get_node_base_features()
+        node_features = self._add_vehicle_load_features(node_features)
+        node_features = self._add_delivery_features(node_features)
+        node_features = self._add_depot_and_vehicle_indicators(node_features)
+        node_features = self._add_active_vehicle_indicator(node_features)
+        node_features = self._add_day_end_features(node_features)
+        node_features = self._add_future_stock_and_demand(node_features)
+        node_features = self._add_depot_flag(node_features)
+        global_features, normalized_remaining_time = self._get_global_features()
 
         state = {
             'normalized_remaining_time': normalized_remaining_time,
@@ -92,6 +22,108 @@ class IRPEnvUtilitiesMixin:
         }
         state_np = self.tensors_to_numpy(state)
         return state_np
+
+
+    def _get_node_base_features(self):
+        return torch.cat([
+            self.min_capacities / self.max_capacities,
+            self.demands / self.max_capacities,
+            self.init_capacities / self.max_capacities,
+            (self.init_capacities - self.min_capacities) / self.max_capacities,
+            (self.init_capacities < self.min_capacities).float(),
+        ], dim=-1).float()
+
+
+    def _add_vehicle_load_features(self, node_features):
+        temp_load_all_vehicles = self.temp_load.expand(self.num_stations, self.k_vehicles, self.products_count)
+        vehicle_loads = torch.nan_to_num(temp_load_all_vehicles / self.max_capacities.unsqueeze(1), 0, posinf=0)
+        temp_load_flattened = vehicle_loads.reshape(self.num_stations, self.k_vehicles * self.products_count)
+        return torch.cat([node_features, temp_load_flattened], dim=1)
+
+
+    def _add_delivery_features(self, node_features):
+        temp_delivery = torch.zeros(self.num_stations, self.products_count)
+        temp_delivery_percent = torch.zeros(self.num_stations, self.products_count)
+        if self.station_idx != self.depots.item():
+            station_idx_for_capacities = self.station_idx - 1
+            temp_delivery[station_idx_for_capacities] = self.delivery / self.max_capacities[station_idx_for_capacities]
+            temp_delivery_percent[station_idx_for_capacities] = self.delivery_percents
+        node_features = torch.cat([node_features, temp_delivery], dim=1)
+        node_features = torch.cat([node_features, temp_delivery_percent], dim=1)
+        return node_features
+
+
+    def _add_depot_and_vehicle_indicators(self, node_features):
+        depot_features = torch.zeros(1, node_features.shape[1], device=node_features.device)
+        node_features = torch.cat([depot_features, node_features], dim=0)
+
+        vehicle_indicators = torch.zeros(self.num_nodes, self.k_vehicles * 2, device=node_features.device)
+        for k, (upd_loc, prev_loc) in enumerate(zip(self.vehicle_updated_locations, self.vehicle_prev_locations)):
+            vehicle_indicators[int(upd_loc.item()), k] = 1
+            vehicle_indicators[int(prev_loc.item()), k + self.k_vehicles] = 1
+        return torch.cat([node_features, vehicle_indicators], dim=-1)
+
+
+    def _add_active_vehicle_indicator(self, node_features):
+        active_vehicle_flag = torch.zeros(self.num_nodes, 1, device=self.device)
+        active_vehicle_node = self.vehicle_updated_locations[self.vehicle].item()
+        active_vehicle_flag[active_vehicle_node] = 1
+        return torch.cat([node_features, active_vehicle_flag], dim=-1)
+
+
+    def _add_day_end_features(self, node_features):
+        day_end_features = torch.zeros(self.num_nodes, 2, device=node_features.device)
+        day_end_features[:, 0] = float(self.updated_day_end)
+        day_end_features[:, 1] = float(self.prev_day_end)
+        return torch.cat([node_features, day_end_features], dim=-1)
+
+
+    def _add_future_stock_and_demand(self, node_features):
+        future_stock_and_demand = torch.zeros(self.num_nodes, self.products_count * 3 * 2, device=self.device)
+        current_stock = torch.cat([torch.zeros(1, self.products_count, device=self.device), self.init_capacities], dim=0)
+        depot_demand = torch.zeros(1, self.products_count, device=self.device)
+
+        for day in range(3):
+            if self.cur_day.item() + day < self.planning_horizon:
+                current_demand = self.daily_demands[self.cur_day + day].squeeze(0)
+                daily_demand_with_depot = torch.cat([depot_demand, current_demand], dim=0)
+
+                future_stock = current_stock - daily_demand_with_depot
+                future_stock = torch.clamp(future_stock, min=0)
+
+                start_idx = day * self.products_count * 2
+                future_stock_and_demand[:, start_idx:start_idx + self.products_count] = future_stock / self.max_capacities.max()
+                future_stock_and_demand[:, start_idx + self.products_count:start_idx + 2 * self.products_count] = daily_demand_with_depot / self.max_capacities.max()
+            else:
+                if day > 0:
+                    prev_start_idx = (day - 1) * self.products_count * 2
+                    curr_start_idx = day * self.products_count * 2
+                    future_stock_and_demand[:, curr_start_idx:curr_start_idx + 2 * self.products_count] = \
+                        future_stock_and_demand[:, prev_start_idx:prev_start_idx + 2 * self.products_count]
+                else:
+                    start_idx = day * self.products_count * 2
+                    future_stock_and_demand[:, start_idx:start_idx + self.products_count] = current_stock / self.max_capacities.max()
+                    future_stock_and_demand[:, start_idx + self.products_count:start_idx + 2 * self.products_count] = \
+                        torch.zeros_like(current_stock) / self.max_capacities.max()
+
+        return torch.cat([node_features, future_stock_and_demand], dim=-1)
+
+
+    def _add_depot_flag(self, node_features):
+        is_depot_flag = torch.zeros(self.num_nodes, 1, device=node_features.device)
+        is_depot_flag[0, 0] = 1  # Предполагается, что depot — это 0-й узел
+        return torch.cat([node_features, is_depot_flag], dim=-1)
+
+
+    def _get_global_features(self):
+        time_for_vehicle = self.working_time
+        normalized_remaining_time = torch.nan_to_num(self.cur_remaining_time / time_for_vehicle, 0, posinf=0)
+        global_features = torch.cat([
+            self.vehicles.float().unsqueeze(0) / self.k_vehicles * self.max_trips,
+            (self.cur_day / self.planning_horizon).float().unsqueeze(0),
+            (self.vehicles <= 0).float().unsqueeze(0)
+        ]).squeeze().float()
+        return global_features, normalized_remaining_time
 
     def tensors_to_numpy(self, tensor_dict):
         return {key: value.cpu().numpy() for key, value in tensor_dict.items()}

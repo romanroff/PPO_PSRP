@@ -35,6 +35,7 @@ with open(pkl_path, "rb") as f:
 
 # Создание среды
 env = IRPEnv_Custom(model_for_nn, PARAMETERS_DICT)
+env = gymnasium.wrappers.TimeLimit(env, max_episode_steps=50)
 
 if args.pre_train:
     # Загрузка предобученной модели TRPO
@@ -55,7 +56,7 @@ else:
         gamma=0.999,           # Дисконт-фактор
         gae_lambda=0.95,       # GAE-лямбда
         cg_damping=0.1,        # Дэмпинг для conjugate gradient (специфично для TRPO)
-        cg_max_steps=25,       # Максимальное число итераций conjugate gradient
+        cg_max_steps=15,       # Максимальное число итераций conjugate gradient
         device='cuda',
         tensorboard_log="ppo_tensorboard/",  # Логирование в TensorBoard
     )
