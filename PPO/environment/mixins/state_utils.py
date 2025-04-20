@@ -57,10 +57,12 @@ class StateUtils:
         self.closeness = 0
         self.render_steps = []
         # Новые переменные
-        self.current_route = {v: [] for v in range(self.k_vehicles)}
-        self.route_reward = torch.zeros(self.k_vehicles, device=self.device)
+        self.current_route = []
+        self.used_vehicles = []
+        self.route_reward = 0
         self.delivery_reward  = 0
         self.all_routes = 0
+        self.vehicles_count_penalty = 0
 
     def _initialize_tensors(self):
         self.positions = self.positions.to(self.device)

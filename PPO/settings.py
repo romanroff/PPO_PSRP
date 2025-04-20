@@ -20,10 +20,11 @@ REWARDS_TO_LOG = [
     'revisit_2',
     'revisit_3',
     'revisit_4',
-    'overfill_penalty',
+    #'overfill_penalty',
     'delivery_reward',
     'route_reward',
-    'all_routes']
+    #'all_routes',
+    'vehicles_count_penalty']
 
 PARAMETERS_DICT = {
     'num_nodes': 5,

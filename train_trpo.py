@@ -29,7 +29,7 @@ PARAMETERS_DICT['num_nodes'] = args.n
 PARAMETERS_DICT['k_vehicles'] = args.veh
 
 # Загрузка данных
-pkl_path = f"data_pkl/nodes-{args.n}_steps-{500}_veh-{args.veh}.pkl"#r'C:\Users\rkozl\Documents\PythonProjects\PPO_PSRP\data_pkl\vrp_data.pkl'#f"data_pkl/nodes-{args.n}_steps-{500}_veh-{args.veh}.pkl"
+pkl_path = r'C:\Users\rkozl\Documents\PythonProjects\PPO_PSRP\data_pkl\vrp_data.pkl'#f"data_pkl/nodes-{args.n}_steps-{500}_veh-{args.veh}.pkl"
 with open(pkl_path, "rb") as f:
     model_for_nn = pickle.load(f)
 
@@ -56,7 +56,7 @@ else:
         gamma=0.999,           # Дисконт-фактор
         gae_lambda=0.95,       # GAE-лямбда
         cg_damping=0.1,        # Дэмпинг для conjugate gradient (специфично для TRPO)
-        cg_max_steps=15,       # Максимальное число итераций conjugate gradient
+        cg_max_steps=20,       # Максимальное число итераций conjugate gradient
         device='cuda',
         tensorboard_log="ppo_tensorboard/",  # Логирование в TensorBoard
     )

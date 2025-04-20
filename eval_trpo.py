@@ -18,7 +18,7 @@ def main():
     PARAMETERS_DICT['k_vehicles'] = args.veh
 
     # Загрузка model_for_nn из файла .pkl
-    pkl_path =  f"data_pkl/nodes-{args.n}_steps-{500}_veh-{args.veh}.pkl"#r'C:\Users\rkozl\Documents\PythonProjects\PPO_PSRP\data_pkl\vrp_data.pkl'#f"data_pkl/nodes-{args.n}_steps-{500}_veh-{args.veh}.pkl"
+    pkl_path =  r'C:\Users\rkozl\Documents\PythonProjects\PPO_PSRP\data_pkl\vrp_data.pkl'#f"data_pkl/nodes-{args.n}_steps-{500}_veh-{args.veh}.pkl"
     try:
         with open(pkl_path, "rb") as f:
             model_for_nn = pickle.load(f)

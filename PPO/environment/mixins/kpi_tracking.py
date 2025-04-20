@@ -36,24 +36,24 @@ class KPITracking:
         self.all_routes = 0
         # Обновляем маршрут
         if self.station_idx != self.depots.item() and self.delivery.sum() > 0:
-            self.current_route[self.vehicle.item()].append(self.station_idx.item())
+            self.current_route.append(self.station_idx.item())
             delivery_normalized = self.delivery / self.vehicle_compartments[self.vehicle] / self.products_count
             self.delivery_reward = delivery_normalized.sum().item() * 0.1
 
 
-        route_data = self.current_route[self.vehicle.item()]
-        num_stations_visited = len(set(route_data))
-        if num_stations_visited > 1:
-            self.route_reward[self.vehicle] = min(num_stations_visited*0.1, 0.3)
+        num_stations_visited = len(set(self.current_route))
+        if num_stations_visited > 1 and num_stations_visited <=3:
+            self.route_reward = -1*self.dist * 0.25 * num_stations_visited
+        
 
-        if self.day_end:
-            for v in range(self.k_vehicles):
-                route_data = self.current_route[v]
-                num_stations_visited = len(set(route_data))
-                if num_stations_visited > 1:
-                    self.all_routes += min(num_stations_visited*0.1, 0.3)
-                    self.route_reward[v] = 0
-                self.current_route[v] = []
+        # if self.day_end:
+        #     for v in range(self.k_vehicles):
+        #         route_data = self.current_route[v]
+        #         num_stations_visited = len(set(route_data))
+        #         if 1 > num_stations_visited <= 3:
+        #             self.all_routes += self.dist * 0.25 * num_stations_visited
+        #             self.route_reward[v] = 0
+        #         self.current_route[v] = []
 
 
         self.dry_runs_penalty = 0
@@ -64,19 +64,16 @@ class KPITracking:
             self.dry_runs_penalty = -4 * num_dry_stations
 
         penalties = self.get_penalty() 
-        # print(self.dry_runs_penalty)
-        # print(self.dist)
-        # print(self.route_reward[self.vehicle].item())
-        # print(self.delivery_reward)
-        # print(self.all_routes)
 
-        total_reward = self.dry_runs_penalty + self.dist + penalties# + self.route_reward[self.vehicle].item()  + self.all_routes
-        # +\
-        # self.route_reward[self.vehicle].item()  + self.all_routes  #+ self.delivery_reward
+        total_reward = self.dry_runs_penalty + self.dist + penalties  
+
+        if self.revisit_1 + self.revisit_2 + self.revisit_3 + self.revisit_4 == 0:
+            total_reward+=self.route_reward
 
         if self.station_idx == self.depots.item() or self.day_end:
-            self.route_reward[self.vehicle] = 0.0
-            self.current_route[self.vehicle.item()] = []
+            self.route_reward = 0.0
+            self.current_route = []
+            self.used_vehicles = []
 
 
         return total_reward
@@ -99,4 +96,8 @@ class KPITracking:
        
         revisits = self.revisit_1 + self.revisit_2 + self.revisit_3 + self.revisit_4
 
-        return self.time_end + self.empty_load + self.restricted_station + revisits
+        # Штраф за лишние машины
+        self.vehicles_count_penalty = -len(set(self.used_vehicles))
+
+
+        return self.time_end + self.empty_load + self.restricted_station + revisits# + self.vehicles_count_penalty

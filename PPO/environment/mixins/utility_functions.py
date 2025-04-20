@@ -5,12 +5,14 @@ class IRPEnvUtilitiesMixin:
     def get_state(self) -> dict:
         node_features = self._get_node_base_features()
         node_features = self._add_vehicle_load_features(node_features)
+        # node_features = self._add_vehicle_route_lengths(node_features)
         node_features = self._add_delivery_features(node_features)
         node_features = self._add_depot_and_vehicle_indicators(node_features)
         node_features = self._add_active_vehicle_indicator(node_features)
         node_features = self._add_day_end_features(node_features)
         node_features = self._add_future_stock_and_demand(node_features)
         node_features = self._add_depot_flag(node_features)
+        
         global_features, normalized_remaining_time = self._get_global_features()
 
         state = {
@@ -39,6 +41,12 @@ class IRPEnvUtilitiesMixin:
         vehicle_loads = torch.nan_to_num(temp_load_all_vehicles / self.max_capacities.unsqueeze(1), 0, posinf=0)
         temp_load_flattened = vehicle_loads.reshape(self.num_stations, self.k_vehicles * self.products_count)
         return torch.cat([node_features, temp_load_flattened], dim=1)
+    
+    def _add_vehicle_route_lengths(self, node_features):
+        lengths = [len(self.current_route[v]) for v in range(self.k_vehicles)]
+        tensor_lengths = torch.tensor(lengths)
+        tensor_lengths = tensor_lengths.expand(self.num_stations, self.k_vehicles)
+        return torch.cat([node_features, tensor_lengths], dim=1)
 
 
     def _add_delivery_features(self, node_features):
@@ -80,33 +88,46 @@ class IRPEnvUtilitiesMixin:
 
     def _add_future_stock_and_demand(self, node_features):
         future_stock_and_demand = torch.zeros(self.num_nodes, self.products_count * 3 * 2, device=self.device)
-        current_stock = torch.cat([torch.zeros(1, self.products_count, device=self.device), self.init_capacities], dim=0)
+
+        # День 0 — начальный запас (на складе ноль), складываем с начальными емкостями
+        current_stock = torch.cat([
+            torch.zeros(1, self.products_count, device=self.device),  # депо
+            self.init_capacities  # остальные узлы
+        ], dim=0)
+
         depot_demand = torch.zeros(1, self.products_count, device=self.device)
 
         for day in range(3):
+            start_idx = day * self.products_count * 2
+
             if self.cur_day.item() + day < self.planning_horizon:
                 current_demand = self.daily_demands[self.cur_day + day].squeeze(0)
                 daily_demand_with_depot = torch.cat([depot_demand, current_demand], dim=0)
 
-                future_stock = current_stock - daily_demand_with_depot
-                future_stock = torch.clamp(future_stock, min=0)
+                next_stock = current_stock - daily_demand_with_depot
+                next_stock = torch.clamp(next_stock, min=0)
+                
 
-                start_idx = day * self.products_count * 2
-                future_stock_and_demand[:, start_idx:start_idx + self.products_count] = future_stock / self.max_capacities.max()
+                # Нормализуем и сохраняем в future_stock_and_demand
+                future_stock_and_demand[:, start_idx:start_idx + self.products_count] = next_stock / self.max_capacities.max()
                 future_stock_and_demand[:, start_idx + self.products_count:start_idx + 2 * self.products_count] = daily_demand_with_depot / self.max_capacities.max()
+
+                # Обновляем current_stock для следующего дня
+                current_stock = next_stock
             else:
+                # Если выходим за границу горизонта — копируем последний известный день
                 if day > 0:
                     prev_start_idx = (day - 1) * self.products_count * 2
-                    curr_start_idx = day * self.products_count * 2
-                    future_stock_and_demand[:, curr_start_idx:curr_start_idx + 2 * self.products_count] = \
+                    future_stock_and_demand[:, start_idx:start_idx + 2 * self.products_count] = \
                         future_stock_and_demand[:, prev_start_idx:prev_start_idx + 2 * self.products_count]
                 else:
-                    start_idx = day * self.products_count * 2
+                    # Если даже первый день вне горизонта — просто сохраняем current_stock и нули по спросу
                     future_stock_and_demand[:, start_idx:start_idx + self.products_count] = current_stock / self.max_capacities.max()
                     future_stock_and_demand[:, start_idx + self.products_count:start_idx + 2 * self.products_count] = \
                         torch.zeros_like(current_stock) / self.max_capacities.max()
 
         return torch.cat([node_features, future_stock_and_demand], dim=-1)
+
 
 
     def _add_depot_flag(self, node_features):
@@ -118,7 +139,9 @@ class IRPEnvUtilitiesMixin:
     def _get_global_features(self):
         time_for_vehicle = self.working_time
         normalized_remaining_time = torch.nan_to_num(self.cur_remaining_time / time_for_vehicle, 0, posinf=0)
+
         global_features = torch.cat([
+            torch.tensor(len(self.current_route)).unsqueeze(0).unsqueeze(0),
             self.vehicles.float().unsqueeze(0) / self.k_vehicles * self.max_trips,
             (self.cur_day / self.planning_horizon).float().unsqueeze(0),
             (self.vehicles <= 0).float().unsqueeze(0)
@@ -154,9 +177,10 @@ class IRPEnvUtilitiesMixin:
             'revisit_2' : self.revisit_3,
             'revisit_3' : self.revisit_4,
             'overfill_penalty': self.overfill_penalty,
-            'route_reward':self.route_reward.sum().item(),
+            'route_reward':self.route_reward,
             'all_routes':self.all_routes,
-            'delivery_reward':self.delivery_reward
+            'delivery_reward':self.delivery_reward,
+            'vehicles_count_penalty':self.vehicles_count_penalty
         }
         average_routes = self.average_routes(self.station_list)
         kpis['average_stops_per_trip'] /= average_routes + 1e-6

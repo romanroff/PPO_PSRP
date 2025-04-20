@@ -48,7 +48,7 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
                 shape=(self.edge_indices.shape[1], self.edge_features.shape[1]),
                 dtype=np.float32
             ),
-            'global_features': spaces.Box(low=0, high=float('inf'), shape=(3,), dtype=np.float32),
+            'global_features': spaces.Box(low=0, high=float('inf'), shape=(4,), dtype=np.float32),
         })
 
 
@@ -63,6 +63,7 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
         self.end_day_flag = actions[-1] == 1
 
         self.action_history.append((self.vehicle, self.station_idx, self.delivery_percents, self.end_day_flag))
+        self.used_vehicles.append(self.vehicle.item())
 
         self.render_steps.append({
             'type': 'move',

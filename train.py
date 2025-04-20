@@ -42,9 +42,9 @@ else:
         policy_kwargs={
         "features_extractor_class": GATFeatureExtractor,
         "features_extractor_kwargs": {"embedding_size": 128},
-        "net_arch": [128,128,128],
+        "net_arch": [128, 256, 512],  # Оставляем архитектуру сети
         "lstm_hidden_size": 128,
-        "n_lstm_layers": 1
+        "n_lstm_layers": 2
     },
         n_steps = args.n_steps, 
         n_epochs=10,
@@ -52,6 +52,7 @@ else:
         ent_coef=0.01,  
         learning_rate=3e-4,
         clip_range=0.1,
+        clip_range_vf=0.1,
         gae_lambda=0.95,
         gamma=0.999,
         vf_coef=0.1,

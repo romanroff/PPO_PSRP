@@ -69,7 +69,6 @@ class ActionManagement:
         
         distance = (self.get_distance(prev_location, upd_location).item() / max_distance)
         if self.day_end:
-
             for veh in self.vehicle_updated_locations:
                 distance += (self.get_distance(veh, self.depots).item() / max_distance)
 
