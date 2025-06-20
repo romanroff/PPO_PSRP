@@ -23,6 +23,7 @@ class StateUtils:
         self.min_capacities = self.min_capacities[1:, :]
         self.max_capacities = self.max_capacities[1:, :]
         self.init_capacities = self.init_capacities[1:, :]
+        self.init_capacities = self.init_capacities - 50
         # self.init_capacities[0] = torch.tensor([10.0, 10.0])  # или любое другое значение
 
         self.num_stations = self.num_nodes - 1
