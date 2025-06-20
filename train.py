@@ -27,7 +27,7 @@ args = args.parse_args()
 PARAMETERS_DICT['num_nodes'] = args.n
 PARAMETERS_DICT['k_vehicles'] = args.veh
 
-pkl_path = f"data_pkl/nodes-{args.n}_steps-{500}_veh-{args.veh}.pkl"
+pkl_path = r'C:\Users\rkozl\Documents\PythonProjects\PPO_PSRP\data_pkl\vrp_data.pkl'#f"data_pkl/nodes-{args.n}_steps-{500}_veh-{args.veh}.pkl"
 with open(pkl_path, "rb") as f:
     model_for_nn = pickle.load(f)
 

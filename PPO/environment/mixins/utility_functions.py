@@ -5,7 +5,6 @@ class IRPEnvUtilitiesMixin:
     def get_state(self) -> dict:
         node_features = self._get_node_base_features()
         node_features = self._add_vehicle_load_features(node_features)
-        # node_features = self._add_vehicle_route_lengths(node_features)
         node_features = self._add_delivery_features(node_features)
         node_features = self._add_depot_and_vehicle_indicators(node_features)
         node_features = self._add_active_vehicle_indicator(node_features)
@@ -41,13 +40,6 @@ class IRPEnvUtilitiesMixin:
         vehicle_loads = torch.nan_to_num(temp_load_all_vehicles / self.max_capacities.unsqueeze(1), 0, posinf=0)
         temp_load_flattened = vehicle_loads.reshape(self.num_stations, self.k_vehicles * self.products_count)
         return torch.cat([node_features, temp_load_flattened], dim=1)
-    
-    def _add_vehicle_route_lengths(self, node_features):
-        lengths = [len(self.current_route[v]) for v in range(self.k_vehicles)]
-        tensor_lengths = torch.tensor(lengths)
-        tensor_lengths = tensor_lengths.expand(self.num_stations, self.k_vehicles)
-        return torch.cat([node_features, tensor_lengths], dim=1)
-
 
     def _add_delivery_features(self, node_features):
         temp_delivery = torch.zeros(self.num_stations, self.products_count)
@@ -180,7 +172,6 @@ class IRPEnvUtilitiesMixin:
             'route_reward':self.route_reward,
             'all_routes':self.all_routes,
             'delivery_reward':self.delivery_reward,
-            'vehicles_count_penalty':self.vehicles_count_penalty
         }
         average_routes = self.average_routes(self.station_list)
         kpis['average_stops_per_trip'] /= average_routes + 1e-6

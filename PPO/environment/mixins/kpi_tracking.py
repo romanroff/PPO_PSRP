@@ -57,18 +57,24 @@ class KPITracking:
 
 
         self.dry_runs_penalty = 0
+        self.overfill_penalty = 0
         if self.day_end:
             dry_runs_mask = self.init_capacities < self.min_capacities
             dry_stations_mask = torch.any(dry_runs_mask, dim=1)
             num_dry_stations = dry_stations_mask.sum().item()
             self.dry_runs_penalty = -4 * num_dry_stations
 
+        overfill_mask = self.init_capacities > self.max_capacities
+        overfilled_stations_mask = torch.any(overfill_mask, dim=1)
+        num_overfilled_stations = overfilled_stations_mask.sum().item()
+        self.overfill_penalty = -1 * num_overfilled_stations
+
         penalties = self.get_penalty() 
 
-        total_reward = self.dry_runs_penalty + self.dist + penalties  
+        total_reward = self.dry_runs_penalty + self.dist + penalties + 0.05 # + self.overfill_penalty
 
-        if self.revisit_1 + self.revisit_2 + self.revisit_3 + self.revisit_4 == 0:
-            total_reward+=self.route_reward
+        # if self.revisit_1 + self.revisit_2 + self.revisit_3 + self.revisit_4 == 0:
+        #     total_reward+=self.route_reward
 
         if self.station_idx == self.depots.item() or self.day_end:
             self.route_reward = 0.0
@@ -96,8 +102,5 @@ class KPITracking:
        
         revisits = self.revisit_1 + self.revisit_2 + self.revisit_3 + self.revisit_4
 
-        # Штраф за лишние машины
-        self.vehicles_count_penalty = -len(set(self.used_vehicles))
 
-
-        return self.time_end + self.empty_load + self.restricted_station + revisits# + self.vehicles_count_penalty
+        return self.time_end + self.empty_load + self.restricted_station + revisits

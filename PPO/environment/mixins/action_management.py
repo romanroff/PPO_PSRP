@@ -13,18 +13,18 @@ class ActionManagement:
         self.update_edges(self.vehicle)
 
     def _update_load(self):
-        self.overfill_penalty = 0
+        # self.overfill_penalty = 0
         self.delivery = torch.zeros(self.products_count, device=self.device)
         if self.station_idx != self.depots.item():
             station_idx_for_capacities = self.station_idx - 1
             # Вычисляем возможное пополнение для всех продуктов сразу
-            full_fill_up = self.max_capacities - self.init_capacities
+            full_fill_up = 100 - self.init_capacities
             selected_temp_load = self.temp_load[self.vehicle, :]
             max_possible_delivery = torch.min(full_fill_up[station_idx_for_capacities, :].squeeze(0), selected_temp_load)
             # Вычисляем выбранную доставку на основе процентов
             selected_delivery = self.delivery_percents * selected_temp_load
-            if torch.any(selected_delivery > max_possible_delivery):
-                self.overfill_penalty = -1
+            # if torch.any(selected_delivery > max_possible_delivery):
+            #     self.overfill_penalty = -1
             # Выбираем минимальную возможную доставку
             self.delivery = torch.min(selected_delivery, max_possible_delivery)
             # Обновляем init_capacities для всех продуктов

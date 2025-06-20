@@ -23,6 +23,8 @@ class StateUtils:
         self.min_capacities = self.min_capacities[1:, :]
         self.max_capacities = self.max_capacities[1:, :]
         self.init_capacities = self.init_capacities[1:, :]
+        # self.init_capacities[0] = torch.tensor([10.0, 10.0])  # или любое другое значение
+
         self.num_stations = self.num_nodes - 1
 
         self.vehicle_compartments = self.vehicle_compartments[:, 0, :]
@@ -62,7 +64,6 @@ class StateUtils:
         self.route_reward = 0
         self.delivery_reward  = 0
         self.all_routes = 0
-        self.vehicles_count_penalty = 0
 
     def _initialize_tensors(self):
         self.positions = self.positions.to(self.device)
@@ -75,9 +76,19 @@ class StateUtils:
         self.min_capacities = self.min_capacities.to(self.device)
         self.max_capacities = self.max_capacities.to(self.device)
         self.init_capacities = self.init_capacities.to(self.device)
+
+
+        # TODO Удалить при необходимости, чтобы начальные значения не были случайными
+        values = torch.tensor([10, 20, 30, 40, 50, 60], 
+                      dtype=self.init_capacities.dtype, 
+                      device=self.init_capacities.device)
+        self.init_capacities = values[torch.randint(0, len(values), self.init_capacities.shape, device=self.init_capacities.device)]
+        # TODO
+
+
         self.vehicle_compartments = self.vehicle_compartments.to(self.device)
         self.working_hours = self.working_time / (60 * 60)
-        self.vehicle = 0
+        self.vehicle =  torch.tensor(0)
 
         self.depots = self.depots.long()
         self.daily_demands = torch.stack([demand for demand in self.daily_demands]).to(self.device)

@@ -33,7 +33,7 @@ def evaluate_model(model, args):
         frames = eval_env.envs[0].render(probs=probs)
         image_arrays.append(frames)  # Добавляем список кадров для текущего шага
         if hasattr(eval_env.envs[0], 'day_end'):
-            print(action, eval_env.envs[0].day_end, rewards )
+            print(action, eval_env.envs[0].day_end, rewards)
 
         current_action = action[0][1].item()
         visited_actions.add(current_action)
@@ -115,7 +115,13 @@ def evaluate_model_trpo(model, args):
         obs, rewards, done, info = eval_env.step(action)
 
         # Получаем список кадров от render
-        frames = eval_env.envs[0].render(probs=probs)
+        """Вспомогательный метод для создания одного кадра."""
+        # Создаем пустое изображение с размерами, соответствующими figsize
+        width, height = [int(x * 100) for x in [100,100]]  # Предполагаем, что 1 единица figsize = 100 пикселей
+        img = np.zeros((height, width, 3), dtype=np.uint8)  # Черное изображение (RGB)
+        from PIL import Image
+        frames = [Image.fromarray(img)]
+        # frames = eval_env.envs[0].render(probs=probs)
         image_arrays.append(frames)  # Добавляем список кадров для текущего шага
         
         if hasattr(eval_env.envs[0], 'day_end'):

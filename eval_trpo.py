@@ -30,7 +30,7 @@ def main():
     env = DummyVecEnv([lambda: env])  # Оборачиваем в DummyVecEnv
 
     # Загрузка модели
-    model = TRPO.load(rf"models/trpo_GNN_nsteps-{args.n_steps}_nodes-{args.n}_veh-{args.veh}/best_model.zip", env=env)
+    model = TRPO.load(rf"models/randomized_single_overfill_trpo_GNN_nsteps-{args.n_steps}_nodes-{args.n}_veh-{args.veh}/best_model.zip", env=env)
     
     # Проверка совместимости пространства действий
     if not isinstance(env.action_space, model.policy.action_space.__class__):

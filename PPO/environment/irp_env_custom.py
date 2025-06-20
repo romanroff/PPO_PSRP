@@ -22,9 +22,8 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
         self.reset(seed)
 
         self.action_space = spaces.MultiDiscrete([
-            self.k_vehicles,
             self.num_nodes,
-            *[6] * self.products_count,
+            *[5] * self.products_count,
             2
         ])
 
@@ -57,9 +56,8 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
         if not isinstance(actions, torch.Tensor):
             actions = torch.tensor(actions).to(self.device)
 
-        self.vehicle = actions[0]
-        self.station_idx = actions[1]
-        self.delivery_percents = actions[2:-1].float() * 20.0 / 100
+        self.station_idx = actions[0]
+        self.delivery_percents = actions[1:-1].float() * 25.0 / 100
         self.end_day_flag = actions[-1] == 1
 
         self.action_history.append((self.vehicle, self.station_idx, self.delivery_percents, self.end_day_flag))
