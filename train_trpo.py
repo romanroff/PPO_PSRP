@@ -57,7 +57,7 @@ else:
         gamma=0.999,           # Дисконт-фактор
         gae_lambda=0.95,       # GAE-лямбда
         cg_damping=0.1,        # Дэмпинг для conjugate gradient (специфично для TRPO)
-        cg_max_steps=20,       # Максимальное число итераций conjugate gradient
+        cg_max_steps=15,       # Максимальное число итераций conjugate gradient
         device='cuda',
         tensorboard_log="tppo_tensorboard/",  # Логирование в TensorBoard
     )
@@ -73,7 +73,7 @@ eval_env = gymnasium.wrappers.TimeLimit(eval_env, max_episode_steps=50)
 eval_env = Monitor(eval_env, allow_early_resets=True)
 
 # Название эксперимента
-exp_name = f'randomized_single_overfill_trpo_GNN_nsteps-{args.n_steps}_nodes-{args.n}_veh-{args.veh}'
+exp_name = f'randomized_single_lowered_trpo_GNN_nsteps-{args.n_steps}_nodes-{args.n}_veh-{args.veh}'
 eval_callback = EvalCallback(
     eval_env,
     best_model_save_path=f"models/{exp_name}/",

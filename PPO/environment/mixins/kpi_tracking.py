@@ -71,7 +71,7 @@ class KPITracking:
 
         penalties = self.get_penalty() 
 
-        total_reward = self.dry_runs_penalty + self.dist + penalties + 0.05 # + self.overfill_penalty
+        total_reward = self.dry_runs_penalty + self.dist + penalties + 0.05  + self.overfill_penalty
 
         # if self.revisit_1 + self.revisit_2 + self.revisit_3 + self.revisit_4 == 0:
         #     total_reward+=self.route_reward

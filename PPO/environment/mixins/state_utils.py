@@ -23,7 +23,6 @@ class StateUtils:
         self.min_capacities = self.min_capacities[1:, :]
         self.max_capacities = self.max_capacities[1:, :]
         self.init_capacities = self.init_capacities[1:, :]
-        self.init_capacities = self.init_capacities - 50
         # self.init_capacities[0] = torch.tensor([10.0, 10.0])  # или любое другое значение
 
         self.num_stations = self.num_nodes - 1
@@ -78,16 +77,32 @@ class StateUtils:
         self.max_capacities = self.max_capacities.to(self.device)
         self.init_capacities = self.init_capacities.to(self.device)
 
+        self.vehicle_compartments = self.vehicle_compartments.to(self.device)
+
 
         # TODO Удалить при необходимости, чтобы начальные значения не были случайными
-        values = torch.tensor([10, 20, 30, 40, 50, 60], 
+        values = torch.tensor([ 20, 30, 40, 50, 60], 
                       dtype=self.init_capacities.dtype, 
                       device=self.init_capacities.device)
         self.init_capacities = values[torch.randint(0, len(values), self.init_capacities.shape, device=self.init_capacities.device)]
+
+        values = torch.tensor([40, 50, 60], 
+                      dtype=self.vehicle_compartments.dtype, 
+                      device=self.vehicle_compartments.device)
+        self.vehicle_compartments = values[torch.randint(0, len(values), self.vehicle_compartments.shape, device=self.vehicle_compartments.device)]
+
+        values = torch.tensor([5, 10, 15], 
+                      dtype=self.min_capacities.dtype, 
+                      device=self.min_capacities.device)
+        self.min_capacities = values[torch.randint(0, len(values), self.min_capacities.shape, device=self.min_capacities.device)]
+
+        values = torch.tensor([85, 90, 95], 
+                      dtype=self.max_capacities.dtype, 
+                      device=self.max_capacities.device)
+        self.max_capacities = values[torch.randint(0, len(values), self.max_capacities.shape, device=self.max_capacities.device)]
         # TODO
 
 
-        self.vehicle_compartments = self.vehicle_compartments.to(self.device)
         self.working_hours = self.working_time / (60 * 60)
         self.vehicle =  torch.tensor(0)
 
