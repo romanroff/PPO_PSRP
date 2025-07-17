@@ -145,10 +145,10 @@ class IRPEnvUtilitiesMixin:
 
     def get_kpis(self):
         algorithm_run_time = time.time() - self.algorithm_start_time
-    
+        
         kpis = {
-            'total_travel_distance': int(self.total_travel_distance.mean().item() / 60),
-            'total_travel_time': int(self.total_travel_distance.mean().item()),
+            'total_travel_distance': int(self.total_travel_distance.mean().item()),
+            'total_travel_time': int(self.total_travel_distance.mean().item()*60),
             'average_stock_levels': self.total_stock_level / self.products_count,
             'average_stock_levels_percent': self.average_stock_levels_percent.mean().item() / self.planning_horizon * 100,
             'dry_runs': int(self.total_dry_runs.mean().item()),

@@ -108,11 +108,8 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
         return self.render_utils.render(self, probs=probs, mode=mode)
 
     def action_masks(self):
-        # Маска для транспортных средств: True, если осталось время
-        vehicles_mask = (self.cur_remaining_time > 0).cpu().numpy().astype(bool)
-        
-        # Базовая маска для станций (только станции, без депо)
-        active_vehicles = np.where(vehicles_mask)[0]
+        # Маска для станций (только станции, без депо)
+        active_vehicles = torch.where(self.cur_remaining_time > 0)[0].cpu().numpy()
         restriction_matrix = self.restriction_matrix.cpu().numpy()
         if len(active_vehicles) > 0:
             restriction_matrix_active = restriction_matrix[active_vehicles]
@@ -121,7 +118,6 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
             stations_allowed = np.zeros(self.num_nodes, dtype=bool)
         
         full_stations = torch.all(self.init_capacities >= self.max_capacities, dim=1).cpu().numpy()
-        
         depot_mask = np.array([True])  # Для депо
         full_stations = np.concatenate([depot_mask, full_stations])
         stations_mask = stations_allowed & ~full_stations  
@@ -129,13 +125,38 @@ class IRPEnv_Custom(Env, ActionManagement, KPITracking, RenderUtils, StateUtils,
         delivery_percent_masks = [np.array([True] * 5) for _ in range(self.products_count)]
         
         end_day_mask = np.array([True, True])
-        
-        # Объединяем все маски в одну сплющенную маску для MultiDiscrete
+
+        # Запрещаем повторные посещения (revisits)
+        if len(self.current_route) > 0:
+            last_station = self.current_route[-1]
+            if last_station != self.depots.item():
+                stations_mask[last_station] = False
+                # Запрещаем повторное посещение станций в текущем маршруте
+                for station in set(self.current_route):
+                    if station != self.depots.item():
+                        stations_mask[station] = False
+
+        # Запрещаем пустую доставку, если на станции есть потребность
+        if self.station_idx != self.depots.item():
+            station_idx_for_capacities = self.station_idx - 1
+            for product_idx in range(self.products_count):
+                if (self.init_capacities[station_idx_for_capacities, product_idx] < 
+                    self.max_capacities[station_idx_for_capacities, product_idx]):
+                    # Требуется доставка - запрещаем нулевую доставку
+                    delivery_percent_masks[product_idx][0] = False
+
+
+
+        # Объединяем все маски
         flattened_mask = np.concatenate([
-            vehicles_mask,
             stations_mask,
             *[mask for mask in delivery_percent_masks],
             end_day_mask
         ])
+        
+        # Debug mask size
+        expected_size = self.num_nodes + 5 * self.products_count + 2
+        if flattened_mask.size != expected_size:
+            print(f"Warning: Mask size mismatch. Expected {expected_size}, got {flattened_mask.size}")
         
         return flattened_mask

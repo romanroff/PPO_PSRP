@@ -166,7 +166,7 @@ class RenderUtils:
             f"Day: {env.cur_day[0].item()}\n"
             f"Time Left: {int(env.cur_remaining_time[vehicle].item())} s\n"
             f"Vehicle Locs: {vehicle_locs}\n"
-            f"Distance: {int(env.total_travel_distance[0].item() / 60)} min\n"
+            f"Distance: {int(env.total_travel_distance[0].item())} min\n"
             f"Dry Runs: {int(env.total_dry_runs[0].item())}\n"
             f"Hour: {temp_hour}\n"
             f"End Day: {'Yes' if env.day_end else 'No'}\n"

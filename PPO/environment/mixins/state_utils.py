@@ -23,9 +23,14 @@ class StateUtils:
         self.min_capacities = self.min_capacities[1:, :]
         self.max_capacities = self.max_capacities[1:, :]
         self.init_capacities = self.init_capacities[1:, :]
-        # self.init_capacities[0] = torch.tensor([10.0, 10.0])  # или любое другое значение
-
+   
         self.num_stations = self.num_nodes - 1
+
+        matrix = torch.rand(self.weight_matrixes.shape, device=self.device, dtype=torch.float64)* (200 - 50) + 50
+        matrix.fill_diagonal_(0.0)
+        self.weight_matrixes = matrix
+        print(self.weight_matrixes)
+
 
         self.vehicle_compartments = self.vehicle_compartments[:, 0, :]
         # self.working_time = self.working_time[0].unsqueeze(0)
@@ -77,6 +82,7 @@ class StateUtils:
         self.max_capacities = self.max_capacities.to(self.device)
         self.init_capacities = self.init_capacities.to(self.device)
 
+
         self.vehicle_compartments = self.vehicle_compartments.to(self.device)
 
 
@@ -85,23 +91,28 @@ class StateUtils:
                       dtype=self.init_capacities.dtype, 
                       device=self.init_capacities.device)
         self.init_capacities = values[torch.randint(0, len(values), self.init_capacities.shape, device=self.init_capacities.device)]
+        # self.init_capacities = torch.tensor([[50., 20.],
+        # [30., 30.],
+        # [30., 40.],
+        # [30., 30.],
+        # [50., 40.]], dtype=torch.float64)
+        # self.init_capacities[0] = torch.tensor([10.0, 10.0])  # или любое другое значение
 
-        values = torch.tensor([40, 50, 60], 
+        values = torch.tensor([ 50], 
                       dtype=self.vehicle_compartments.dtype, 
                       device=self.vehicle_compartments.device)
         self.vehicle_compartments = values[torch.randint(0, len(values), self.vehicle_compartments.shape, device=self.vehicle_compartments.device)]
-
-        values = torch.tensor([5, 10, 15], 
+        
+        values = torch.tensor([5], 
                       dtype=self.min_capacities.dtype, 
                       device=self.min_capacities.device)
         self.min_capacities = values[torch.randint(0, len(values), self.min_capacities.shape, device=self.min_capacities.device)]
 
-        values = torch.tensor([85, 90, 95], 
+        values = torch.tensor([95], 
                       dtype=self.max_capacities.dtype, 
                       device=self.max_capacities.device)
         self.max_capacities = values[torch.randint(0, len(values), self.max_capacities.shape, device=self.max_capacities.device)]
         # TODO
-
 
         self.working_hours = self.working_time / (60 * 60)
         self.vehicle =  torch.tensor(0)
@@ -144,10 +155,12 @@ class StateUtils:
         temp_hour_max = self.daily_matrixes.shape[1] - 1
         temp_hour = torch.clamp(temp_hour, min=0, max=temp_hour_max)
         self.weight_matrixes = self.daily_matrixes[self.cur_day, temp_hour].squeeze(0)
+
         self.edge_indices = (self.weight_matrixes > 0).nonzero(as_tuple=False).t().contiguous()
         time_for_vehicle = self.working_time[vehicle]
         self.edge_features = (self.weight_matrixes / self.weight_matrixes.max().item())[
             self.edge_indices[0], self.edge_indices[1]].unsqueeze(-1).float()
+
 
     def mock_edge_matrix(self):
         temp_hour = int(self.working_hours.max().item())

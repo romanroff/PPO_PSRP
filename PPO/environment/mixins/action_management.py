@@ -23,8 +23,6 @@ class ActionManagement:
             max_possible_delivery = torch.min(full_fill_up[station_idx_for_capacities, :].squeeze(0), selected_temp_load)
             # Вычисляем выбранную доставку на основе процентов
             selected_delivery = self.delivery_percents * selected_temp_load
-            # if torch.any(selected_delivery > max_possible_delivery):
-            #     self.overfill_penalty = -1
             # Выбираем минимальную возможную доставку
             self.delivery = torch.min(selected_delivery, max_possible_delivery)
             # Обновляем init_capacities для всех продуктов
@@ -68,15 +66,18 @@ class ActionManagement:
         max_distance = self.weight_matrixes.max().item()
         
         distance = (self.get_distance(prev_location, upd_location).item() / max_distance)
+        self.total_travel_distance += self.get_distance(prev_location, upd_location).item()
         if self.day_end:
             for veh in self.vehicle_updated_locations:
                 distance += (self.get_distance(veh, self.depots).item() / max_distance)
+                self.total_travel_distance += self.get_distance(veh, self.depots).item()
 
             self.vehicles = torch.ones(1, dtype=torch.long, device=self.device) * self.k_vehicles * self.max_trips
             self.demands = self.daily_demands[self.cur_day].squeeze(0)
             self.init_capacities -= self.demands.double()
             self.init_capacities = torch.clamp(self.init_capacities, min=0)
             self.cur_day += 1
+            print("Vehicle compartment До поездки в депо:", self.temp_load)
             self.temp_load = self.vehicle_compartments.clone()
             self.cur_remaining_time = self.working_time.clone()
 

@@ -7,7 +7,7 @@ class KPITracking:
         current_location, next_location = self.vehicle_prev_locations[self.vehicle], self.vehicle_updated_locations[self.vehicle]
 
         distances = self.get_distance(current_location, next_location)
-        self.total_travel_distance += distances
+
 
         if self.day_end:
             dry_runs_mask = (self.init_capacities < self.min_capacities)
@@ -37,8 +37,9 @@ class KPITracking:
         # Обновляем маршрут
         if self.station_idx != self.depots.item() and self.delivery.sum() > 0:
             self.current_route.append(self.station_idx.item())
-            delivery_normalized = self.delivery / self.vehicle_compartments[self.vehicle] / self.products_count
-            self.delivery_reward = delivery_normalized.sum().item() * 0.1
+            delivery_normalized = self.delivery / self.vehicle_compartments[self.vehicle] 
+            self.delivery_reward = delivery_normalized.sum().item() / self.products_count * 0.5
+
 
 
         num_stations_visited = len(set(self.current_route))
@@ -46,14 +47,13 @@ class KPITracking:
             self.route_reward = -1*self.dist * 0.25 * num_stations_visited
         
 
-        # if self.day_end:
-        #     for v in range(self.k_vehicles):
-        #         route_data = self.current_route[v]
-        #         num_stations_visited = len(set(route_data))
-        #         if 1 > num_stations_visited <= 3:
-        #             self.all_routes += self.dist * 0.25 * num_stations_visited
-        #             self.route_reward[v] = 0
-        #         self.current_route[v] = []
+        if self.day_end:
+            route_data = self.current_route
+            num_stations_visited = len(set(route_data))
+            if 1 > num_stations_visited <= 3:
+                self.all_routes += self.dist * 0.25 * num_stations_visited
+                self.route_reward = 0
+            self.current_route = []
 
 
         self.dry_runs_penalty = 0
@@ -62,7 +62,7 @@ class KPITracking:
             dry_runs_mask = self.init_capacities < self.min_capacities
             dry_stations_mask = torch.any(dry_runs_mask, dim=1)
             num_dry_stations = dry_stations_mask.sum().item()
-            self.dry_runs_penalty = -4 * num_dry_stations
+            self.dry_runs_penalty = -8 * num_dry_stations
 
         overfill_mask = self.init_capacities > self.max_capacities
         overfilled_stations_mask = torch.any(overfill_mask, dim=1)
@@ -71,10 +71,15 @@ class KPITracking:
 
         penalties = self.get_penalty() 
 
-        total_reward = self.dry_runs_penalty + self.dist + penalties + 0.05  + self.overfill_penalty
+        self.dist = self.dist
+        if self.dist < 0:
+            self.dist *= 2
 
-        # if self.revisit_1 + self.revisit_2 + self.revisit_3 + self.revisit_4 == 0:
-        #     total_reward+=self.route_reward
+        total_reward = self.dry_runs_penalty + self.dist + penalties  + self.overfill_penalty #+ self.delivery_reward
+        # if total_reward >= 0:
+        #     total_reward += 2
+        if self.revisit_1 + self.revisit_2 + self.revisit_3 + self.revisit_4 == 0:
+            total_reward+=self.route_reward
 
         if self.station_idx == self.depots.item() or self.day_end:
             self.route_reward = 0.0

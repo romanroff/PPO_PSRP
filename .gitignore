@@ -119,6 +119,7 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+
 # Environments
 .venv
 venv/
@@ -179,3 +180,10 @@ cython_debug/
 /data_generators
 qwerty.ipynb
 /models
+
+/tensorboard_old_results
+/tppo_tensorboard
+/tensorboard_metric_plots
+/models_*
+/data_pkl
+/cache
