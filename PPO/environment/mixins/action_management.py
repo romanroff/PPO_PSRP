@@ -77,7 +77,7 @@ class ActionManagement:
             self.init_capacities -= self.demands.double()
             self.init_capacities = torch.clamp(self.init_capacities, min=0)
             self.cur_day += 1
-            print("Vehicle compartment До поездки в депо:", self.temp_load)
+            # print("Vehicle compartment До поездки в депо:", self.temp_load)
             self.temp_load = self.vehicle_compartments.clone()
             self.cur_remaining_time = self.working_time.clone()
 

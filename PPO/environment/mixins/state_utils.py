@@ -29,7 +29,7 @@ class StateUtils:
         matrix = torch.rand(self.weight_matrixes.shape, device=self.device, dtype=torch.float64)* (200 - 50) + 50
         matrix.fill_diagonal_(0.0)
         self.weight_matrixes = matrix
-        print(self.weight_matrixes)
+        # print(self.weight_matrixes)
 
 
         self.vehicle_compartments = self.vehicle_compartments[:, 0, :]

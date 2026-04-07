@@ -1,5 +1,6 @@
 import argparse
 import pickle
+from pathlib import Path
 import gymnasium
 from sb3_contrib import RecurrentPPO
 from sb3_contrib import TRPO
@@ -10,7 +11,7 @@ from stable_baselines3.common.monitor import Monitor
 import torch
 
 from PPO.environment.irp_env_custom import IRPEnv_Custom
-from PPO.logger import InfoLoggerCallback, RewardsCallback, TensorboardGradientCallback
+from PPO.logger import InfoLoggerCallback, RewardsCallback
 from PPO.settings import KEYS_TO_LOG, REWARDS_TO_LOG, PARAMETERS_DICT
 from PPO.GNN.GNN_Gat import GATFeatureExtractor
 from stable_baselines3.common.utils import Schedule
@@ -27,7 +28,8 @@ args = args.parse_args()
 PARAMETERS_DICT['num_nodes'] = args.n
 PARAMETERS_DICT['k_vehicles'] = args.veh
 
-pkl_path = r'C:\Users\rkozl\Documents\PythonProjects\PPO_PSRP\data_pkl\vrp_data.pkl'#f"data_pkl/nodes-{args.n}_steps-{500}_veh-{args.veh}.pkl"
+project_root = Path(__file__).resolve().parent
+pkl_path = project_root / "data_pkl" / "vrp_data.pkl"
 with open(pkl_path, "rb") as f:
     model_for_nn = pickle.load(f)
 
@@ -64,8 +66,6 @@ else:
 
 log_callback = InfoLoggerCallback(KEYS_TO_LOG)
 rewards_callback = RewardsCallback(REWARDS_TO_LOG)
-gradient_callback = TensorboardGradientCallback()
-
 eval_env = IRPEnv_Custom(model_for_nn, PARAMETERS_DICT)
 eval_env = gymnasium.wrappers.TimeLimit(eval_env, max_episode_steps=50)
 eval_env = Monitor(eval_env, allow_early_resets=True)

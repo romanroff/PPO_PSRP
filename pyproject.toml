@@ -9,7 +9,6 @@ readme = "README.md"
 python = "^3.11"
 
 [tool.poetry.group.dev.dependencies]
-gym = "^0.26.2"
 torch = "^2.5.1"
 gymnasium = "^1.0.0"
 tensorboard = "^2.18.0"
